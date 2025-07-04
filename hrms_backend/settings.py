@@ -41,7 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
-    'hr',  # added custom HR app for CustomUser
+    'HR',  # changed from 'hr'
 ]
 
 MIDDLEWARE = [
