@@ -9,9 +9,11 @@ https://docs.djangoproject.com/en/5.2/howto/deployment/wsgi/
 
 import os
 import sys
-import os.path
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Calculate and insert the project root into sys.path
+parent = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(parent, '..'))
+sys.path.insert(0, project_root)
 
 from django.core.wsgi import get_wsgi_application
 
