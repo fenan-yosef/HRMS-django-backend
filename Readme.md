@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This project is a Django-based REST API for a Human Resource Management System (HRMS). It provides endpoints for managing departments, employees, leave requests, and performance reviews. The API is designed to be used by a frontend application for HR management tasks.
+This project is a Django-based REST API for a Human Resource Management System (HRMS) that provides endpoints for managing users, departments, leave requests, performance reviews, and attendance. The API uses JWT for authentication and has role-based access control.
 
 ## Setup Instructions
 
@@ -39,24 +39,19 @@ This project is a Django-based REST API for a Human Resource Management System (
     pip install -r requirements.txt
     ```
 
-5.  **Configure the database:**
-
-    *   The project uses SQLite by default. You can modify the database settings in `hrms_backend/settings.py`.
-    *   To use a different database, update the `DATABASES` setting accordingly.
-
-6.  **Run migrations:**
+5.  **Run migrations:**
 
     ```bash
     python manage.py migrate
     ```
 
-7.  **Create a superuser:**
+6.  **Create a superuser (optional, for admin panel access):**
 
     ```bash
     python manage.py createsuperuser
     ```
 
-8.  **Run the development server:**
+7.  **Run the development server:**
 
     ```bash
     python manage.py runserver
@@ -64,154 +59,441 @@ This project is a Django-based REST API for a Human Resource Management System (
 
 ## API Endpoints
 
-The API endpoints are defined using Django REST Framework's `DefaultRouter`. The base URL for all API endpoints is `/api/`.
+Base URL: `/api/`
+
+---
+
+### Authentication
+
+#### 1. Register User
+**Endpoint:** `POST /api/auth/register/`  
+**Description:** Create a new user.
+
+**Example Payload:**
+```json
+{
+  "username": "hr_manager",
+  "email": "hr_manager@example.com",
+  "password": "your_password",
+  "role": "HR"
+}
+```
+
+**Sample Response:**
+```json
+{
+  "message": "User created successfully."
+}
+```
+
+---
+
+#### 2. Obtain JWT Token
+**Endpoint:** `POST /api/auth/token/`  
+**Description:** Obtain JWT access and refresh tokens.
+
+**Example Payload:**
+```json
+{
+  "username": "hr_manager",
+  "password": "your_password"
+}
+```
+
+**Sample Response:**
+```json
+{
+  "access": "eyJ0eXAiOiJKV1QiLCJh...",
+  "refresh": "eyJ0eXAiOiJKV1QiLCJh..."
+}
+```
+
+---
+
+#### 3. Refresh JWT Token
+**Endpoint:** `POST /api/auth/token/refresh/`  
+**Description:** Refresh an expired access token.
+
+**Example Payload:**
+```json
+{
+  "refresh": "eyJ0eXAiOiJKV1QiLCJh..."
+}
+```
+
+**Sample Response:**
+```json
+{
+  "access": "eyJ0eXAiOiJKV1QiLCJh..."
+}
+```
+
+---
+
+#### 4. Get CSRF Token
+**Endpoint:** `GET /api/get-csrf-token/`  
+**Description:** Retrieve a CSRF token (if needed).
+
+**Sample Response:**  
+An HTML template displaying the CSRF token.
+
+---
+
+### Users
+
+#### 1. List Users
+**Endpoint:** `GET /api/users/`  
+**Description:** Retrieve a list of all users.  
+**Authentication:** Any authenticated user.
+
+**Sample Response:**
+```json
+[
+  {
+    "id": 1,
+    "username": "ceo_user",
+    "email": "ceo@example.com",
+    "role": "CEO"
+  },
+  {
+    "id": 2,
+    "username": "hr_manager",
+    "email": "hr_manager@example.com",
+    "role": "HR"
+  }
+]
+```
+
+#### 2. Create User
+**Endpoint:** `POST /api/users/`  
+**Description:** Create a new user (accessible only by CEO or HR).  
+**Example Payload:**
+```json
+{
+  "username": "new_employee",
+  "email": "employee@example.com",
+  "password": "new_password",
+  "role": "Employee"
+}
+```
+
+**Sample Response:**
+```json
+{
+  "id": 3,
+  "username": "new_employee",
+  "email": "employee@example.com",
+  "role": "Employee"
+}
+```
+
+#### 3. Retrieve/Update/Delete User
+**Endpoint:** `/api/users/{id}/`  
+**Description:**  
+- `GET`: Retrieve details for a user.  
+- `PUT/PATCH`: Update user details (CEO or HR only).  
+- `DELETE`: Delete a user (CEO or HR only).
+
+**Example GET Response:**
+```json
+{
+  "id": 2,
+  "username": "hr_manager",
+  "email": "hr_manager@example.com",
+  "role": "HR"
+}
+```
+
+---
 
 ### Departments
 
-*   **`/api/departments/`**
-    *   `GET`: List all departments.
-    *   `POST`: Create a new department (Admin only).
-*   **`/api/departments/{id}/`**
-    *   `GET`: Retrieve a specific department.
-    *   `PUT/PATCH`: Update a department (Admin only).
-    *   `DELETE`: Delete a department (Admin only).
+#### 1. List Departments
+**Endpoint:** `GET /api/departments/`  
+**Description:** Retrieve all departments (authenticated users).
 
-### Employees
+**Sample Response:**
+```json
+[
+  {
+    "id": 1,
+    "name": "Engineering",
+    "manager": 2
+  }
+]
+```
 
-*   **`/api/employees/`**
-    *   `GET`: List all employees.
-    *   `POST`: Create a new employee (Admin only).
-*   **`/api/employees/{id}/`**
-    *   `GET`: Retrieve a specific employee.
-    *   `PUT/PATCH`: Update an employee (Employee themselves or Admin).
-    *   `DELETE`: Delete an employee (Admin only).
+#### 2. Create Department
+**Endpoint:** `POST /api/departments/`  
+**Description:** Create a new department (CEO or HR only).  
+**Example Payload:**
+```json
+{
+  "name": "Marketing",
+  "manager": 2
+}
+```
 
-### Leaves
+**Sample Response:**
+```json
+{
+  "id": 2,
+  "name": "Marketing",
+  "manager": 2
+}
+```
 
-*   **`/api/leaves/`**
-    *   `GET`: List all leave requests (Admin), leave requests for the user and their direct reports (Manager), or the user's own leave requests (Employee).
-    *   `POST`: Create a new leave request (Employee).
-*   **`/api/leaves/{id}/`**
-    *   `GET`: Retrieve a specific leave request.
-    *   `PUT/PATCH`: Update a leave request (Employee themselves or Admin).
-    *   `DELETE`: Delete a leave request (Employee themselves or Admin).
+#### 3. Retrieve/Update/Delete Department
+**Endpoint:** `/api/departments/{id}/`  
+**Description:**  
+- `GET`: Retrieve details of a department.  
+- `PUT/PATCH`: Update department (CEO or HR only).  
+- `DELETE`: Delete a department (CEO or HR only).
+
+**Example GET Response:**
+```json
+{
+  "id": 1,
+  "name": "Engineering",
+  "manager": 2
+}
+```
+
+---
+
+### Leave Requests
+
+#### 1. List Leave Requests
+**Endpoint:** `GET /api/leave-requests/`  
+**Description:**  
+- For CEO/HR/Manager: Returns all leave requests.  
+- For Employee: Returns only their own leave requests.
+
+**Sample Response for CEO:**
+```json
+[
+  {
+    "id": 1,
+    "employee": 3,
+    "start_date": "2025-07-01",
+    "end_date": "2025-07-05",
+    "status": "Pending",
+    "created_at": "2025-06-20T12:34:56Z"
+  }
+]
+```
+
+#### 2. Create Leave Request
+**Endpoint:** `POST /api/leave-requests/`  
+**Description:** Employees create a new leave request (employee field auto-assigned).  
+**Example Payload:**
+```json
+{
+  "start_date": "2025-07-10",
+  "end_date": "2025-07-15",
+  "status": "Pending"
+}
+```
+
+**Sample Response:**
+```json
+{
+  "id": 2,
+  "employee": 3,
+  "start_date": "2025-07-10",
+  "end_date": "2025-07-15",
+  "status": "Pending",
+  "created_at": "2025-06-25T08:00:00Z"
+}
+```
+
+#### 3. Retrieve/Update/Delete Leave Request
+**Endpoint:** `/api/leave-requests/{id}/`  
+**Description:**  
+- `GET`: Retrieve leave request details.  
+- `PUT/PATCH`: Update (accessible by owner, CEO, HR, or Manager).  
+- `DELETE`: Delete (accessible by owner, CEO, HR, or Manager).
+
+**Example GET Response:**
+```json
+{
+  "id": 1,
+  "employee": 3,
+  "start_date": "2025-07-01",
+  "end_date": "2025-07-05",
+  "status": "Pending",
+  "created_at": "2025-06-20T12:34:56Z"
+}
+```
+
+---
 
 ### Performance Reviews
 
-*   **`/api/reviews/`**
-    *   `GET`: List all performance reviews (Admin), reviews for the user's reports (Manager), or the user's own reviews (Employee).
-    *   `POST`: Create a new performance review (Admin or Manager).
-*   **`/api/reviews/{id}/`**
-    *   `GET`: Retrieve a specific performance review.
-    *   `PUT/PATCH`: Update a performance review (Admin or Manager).
-    *   `DELETE`: Delete a performance review (Admin).
+#### 1. List Performance Reviews
+**Endpoint:** `GET /api/performance-reviews/`  
+**Description:**  
+- For CEO/HR/Manager: Returns all performance reviews.  
+- For Employee: Returns only their own reviews.
 
-## Models
+**Sample Response:**
+```json
+[
+  {
+    "id": 1,
+    "employee": 3,
+    "reviewer": 2,
+    "score": 85,
+    "comments": "Good performance overall.",
+    "created_at": "2025-06-15T10:20:30Z"
+  }
+]
+```
 
-### Department
+#### 2. Create Performance Review
+**Endpoint:** `POST /api/performance-reviews/`  
+**Description:** Create a new review (accessible only by CEO, HR, or Manager).  
+**Example Payload:**
+```json
+{
+  "employee": 3,
+  "reviewer": 2,
+  "score": 90,
+  "comments": "Excellent work!"
+}
+```
 
-*   `id`: Integer (Primary Key)
-*   `name`: CharField (Max Length: 100)
-*   `location`: CharField (Max Length: 100)
+**Sample Response:**
+```json
+{
+  "id": 2,
+  "employee": 3,
+  "reviewer": 2,
+  "score": 90,
+  "comments": "Excellent work!",
+  "created_at": "2025-06-28T14:45:00Z"
+}
+```
 
-### Employee
+#### 3. Retrieve/Update/Delete Performance Review
+**Endpoint:** `/api/performance-reviews/{id}/`  
+**Description:**  
+- `GET`: Retrieve review details.  
+- `PUT/PATCH`: Update review (CEO, HR, or Manager only).  
+- `DELETE`: Delete review (CEO, HR, or Manager only).
 
-*   `id`: Integer (Primary Key)
-*   `first_name`: CharField (Max Length: 100)
-*   `last_name`: CharField (Max Length: 100)
-*   `date_of_birth`: DateField
-*   `gender`: CharField (Max Length: 20)
-*   `email`: EmailField
-*   `phone_number`: CharField (Max Length: 20)
-*   `address`: TextField
-*   `hire_date`: DateField
-*   `job_title`: CharField (Max Length: 100)
-*   `status`: CharField (Max Length: 20)
-*   `department`: ForeignKey (Department)
-*   `manager`: ForeignKey (Employee, null=True, blank=True)
+**Example GET Response:**
+```json
+{
+  "id": 1,
+  "employee": 3,
+  "reviewer": 2,
+  "score": 85,
+  "comments": "Good performance overall.",
+  "created_at": "2025-06-15T10:20:30Z"
+}
+```
 
-### Leave
+---
 
-*   `id`: Integer (Primary Key)
-*   `employee`: ForeignKey (Employee)
-*   `start_date`: DateField
-*   `end_date`: DateField
-*   `leave_type`: CharField (Max Length: 50)
-*   `reason`: TextField
-*   `status`: CharField (Max Length: 20)
+### Attendance
 
-### PerformanceReview
+#### 1. List Attendance Records
+**Endpoint:** `GET /api/attendances/`  
+**Description:**  
+- For CEO/HR: Returns all attendance records.  
+- For Manager/Employee: Returns only their own records.
 
-*   `id`: Integer (Primary Key)
-*   `employee`: ForeignKey (Employee)
-*   `reviewer`: ForeignKey (Employee)
-*   `review_date`: DateField
-*   `performance_summary`: TextField
-*   `rating`: Integer
+**Sample Response:**
+```json
+[
+  {
+    "id": 1,
+    "employee": 3,
+    "date": "2025-07-04",
+    "status": "Present",
+    "check_in_time": "09:00:00",
+    "check_out_time": "17:00:00",
+    "created_at": "2025-07-04T17:05:00Z"
+  }
+]
+```
 
-## Serializers
+#### 2. Create Attendance Record
+**Endpoint:** `POST /api/attendances/`  
+**Description:** Create a new attendance record (accessible only by CEO or HR).  
+**Example Payload:**
+```json
+{
+  "employee": 3,
+  "date": "2025-07-04",
+  "status": "Present",
+  "check_in_time": "09:00:00",
+  "check_out_time": "17:00:00"
+}
+```
 
-Serializers are used to convert model instances to JSON format and vice versa.
+**Sample Response:**
+```json
+{
+  "id": 2,
+  "employee": 3,
+  "date": "2025-07-04",
+  "status": "Present",
+  "check_in_time": "09:00:00",
+  "check_out_time": "17:00:00",
+  "created_at": "2025-07-04T17:07:00Z"
+}
+```
 
-### DepartmentSerializer
+#### 3. Retrieve/Update/Delete Attendance Record
+**Endpoint:** `/api/attendances/{id}/`  
+**Description:**  
+- `GET`: Retrieve attendance details.  
+- `PUT/PATCH`: Update attendance (CEO or HR only).  
+- `DELETE`: Delete attendance (CEO or HR only).
 
-Serializes `Department` objects. Includes `id`, `name`, and `location` fields.
+**Example GET Response:**
+```json
+{
+  "id": 1,
+  "employee": 3,
+  "date": "2025-07-04",
+  "status": "Present",
+  "check_in_time": "09:00:00",
+  "check_out_time": "17:00:00",
+  "created_at": "2025-07-04T17:05:00Z"
+}
+```
 
-### EmployeeListSerializer
+---
 
-A simplified serializer for listing employees. Includes `id`, `first_name`, `last_name`, `job_title`, `email`, and `department` fields.
+## Models Overview
 
-### EmployeeDetailSerializer
-
-A detailed serializer for a single employee view. Includes all employee fields, as well as nested `DepartmentSerializer` and `StringRelatedField` for the manager and reports.
-
-### LeaveSerializer
-
-Serializes `Leave` objects. Includes all fields from the `Leave` model.
-
-### PerformanceReviewSerializer
-
-Serializes `PerformanceReview` objects. Includes all fields from the `PerformanceReview` model.
+- **CustomUser:** Extends Django's AbstractUser and includes a `role` field (CEO, Manager, HR, Employee).  
+- **Department:** Contains `name` and a reference to a manager (CustomUser).  
+- **LeaveRequest:** Tracks leave details with `employee`, start/end dates, status, and creation time.  
+- **PerformanceReview:** Contains review details with `employee`, `reviewer`, score, comments, and creation time.  
+- **Attendance:** Logs attendance with `employee`, date, status, check-in and check-out times, and creation time.
 
 ## Permissions
 
-Custom permissions are used to control access to different resources.
+- **IsCEO:** Only users with the 'CEO' role.
+- **IsManager:** Only users with the 'Manager' role.
+- **IsHR:** Only users with the 'HR' role.
+- **IsEmployee:** Only users with the 'Employee' role.
+- **IsOwner:** Permissions granted only to the object owner.
+- **AnyOf:** Composite permission that grants access if any included permission returns true.
 
-### IsAdminOrReadOnly
+## Troubleshooting
 
-Allows read-only access to all users, but only allows admin users to modify objects.
+If you encounter errors like "OperationalError: no such table: hr_department", ensure you run the migrations:
 
-### IsManagerAndOwnerOrReadOnly
+```bash
+python manage.py makemigrations hr
+python manage.py migrate
+```
 
-Allows managers to view their team's data and employees to view their own data. Only the owner of the object can modify it.
+---
 
-### IsEmployeeOwner
-
-Allows users to view any profile (for company directory) but only edit their own.
-
-## Views
-
-### DepartmentViewSet
-
-Provides CRUD operations for `Department` objects. Only admin users can create, update, or delete departments.
-
-### EmployeeViewSet
-
-Provides CRUD operations for `Employee` objects. Anyone can list employees, but only the employee themselves or an admin can edit their profile.
-
-### LeaveViewSet
-
-Provides CRUD operations for `Leave` objects. Employees can only manage their own leave requests, managers can view their team's requests, and admins can see all requests.
-
-### PerformanceReviewViewSet
-
-Provides CRUD operations for `PerformanceReview` objects. Permissions follow the same logic as Leave requests.
-
-## URLs
-
-The URL patterns are defined in `hr_system/urls.py` and are automatically generated by the `DefaultRouter`.
-
-*   `/api/departments/`: Maps to the `DepartmentViewSet`.
-*   `/api/employees/`: Maps to the `EmployeeViewSet`.
-*   `/api/leaves/`: Maps to the `LeaveViewSet`.
-*   `/api/reviews/`: Maps to the `PerformanceReviewViewSet`.
+*This documentation is updated to reflect all available endpoints, their respective example payloads, and responses for seamless front-end integration.*
