@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-v^g*+pwp3*$&u0pubf&okpbskk9rm_fx3&v$g-p0$f(=d&m&c8
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['hrms-django-backend.onrender.com', 'localhost', '127.0.0.1']
 
 APPEND_SLASH = True
 
@@ -41,7 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
-    'hr',  # changed from 'HR'
+    'hr', 
 ]
 
 MIDDLEWARE = [
