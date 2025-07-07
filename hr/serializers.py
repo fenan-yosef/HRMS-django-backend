@@ -1,11 +1,27 @@
 from rest_framework import serializers
 from .models import CustomUser, Department, LeaveRequest, PerformanceReview, Attendance
 from django.contrib.auth import get_user_model
+from rest_framework.validators import UniqueValidator
+
 
 User = get_user_model()
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
+    username = serializers.CharField(
+        max_length=150,
+        validators=[
+            UniqueValidator(queryset=User.objects.all(), message="A user with that username already exists.")
+        ],
+        required=True,
+    )
+    email = serializers.EmailField(
+        max_length=254,
+        required=True,
+        validators=[
+            UniqueValidator(queryset=User.objects.all(), message="A user with that email already exists.")
+        ],
+    )
 
     class Meta:
         model = User
@@ -21,9 +37,14 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
 
 class UserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False)
+
     class Meta:
         model = CustomUser
-        fields = ['id', 'username', 'email', 'role']
+        fields = ['id', 'username', 'email', 'role', 'password']
+
+    def create(self, validated_data):
+        return User.objects.create_user(**validated_data)
 
 class DepartmentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -38,6 +59,12 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
 class PerformanceReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = PerformanceReview
+        fields = '__all__'
+
+class AttendanceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Attendance
+        fields = '__all__'
         fields = '__all__'
 
 class AttendanceSerializer(serializers.ModelSerializer):
