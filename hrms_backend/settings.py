@@ -139,7 +139,9 @@ REST_FRAMEWORK = {
     ]
 }
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # Allow requests from your frontend during development
-    "https://hrms-django-backend.onrender.com"  # Allow requests from your deployed frontend
-]
+# Remove the origin-specific list and allow all origins
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:5173",  # Allow requests from your frontend during development
+#     "https://hrms-django-backend.onrender.com"  # Allow requests from your deployed frontend
+# ]
+CORS_ALLOW_ALL_ORIGINS = True
