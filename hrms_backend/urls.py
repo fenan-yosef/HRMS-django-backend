@@ -7,6 +7,8 @@ urlpatterns = [
     # The path for the Django admin site you've already been using
     path('admin/', admin.site.urls),
     path('api/', include('hr.urls')),
+    path('api/departments/', include('department.urls')),
+    path('api/employees/', include('employee.urls')),
 
 
     # This is the new line you are adding.

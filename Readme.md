@@ -82,7 +82,12 @@ Base URL: `/api/`
 **Sample Response:**
 ```json
 {
-  "message": "User created successfully."
+    "message": "User registered successfully.",
+    "user": {
+        "username": "hr_manager",
+        "email": "hr_manager@example.com",
+        "role": "HR"
+    }
 }
 ```
 
@@ -210,14 +215,15 @@ An HTML template displaying the CSRF token.
 
 #### 1. List Departments
 **Endpoint:** `GET /api/departments/`  
-**Description:** Retrieve all departments (authenticated users).
-
+**Description:** Retrieve all departments.  
 **Sample Response:**
 ```json
 [
   {
     "id": 1,
     "name": "Engineering",
+    "code": "ENG001",
+    "description": "Handles product development",
     "manager": 2
   }
 ]
@@ -225,36 +231,31 @@ An HTML template displaying the CSRF token.
 
 #### 2. Create Department
 **Endpoint:** `POST /api/departments/`  
-**Description:** Create a new department (CEO or HR only).  
+**Description:** Create a new department.  
 **Example Payload:**
 ```json
 {
   "name": "Marketing",
-  "manager": 2
-}
-```
-
-**Sample Response:**
-```json
-{
-  "id": 2,
-  "name": "Marketing",
-  "manager": 2
+  "code": "MKT001",
+  "description": "Handles market research and campaigns"
 }
 ```
 
 #### 3. Retrieve/Update/Delete Department
 **Endpoint:** `/api/departments/{id}/`  
 **Description:**  
-- `GET`: Retrieve details of a department.  
-- `PUT/PATCH`: Update department (CEO or HR only).  
-- `DELETE`: Delete a department (CEO or HR only).
+- `GET`: Retrieve department details.  
+- `PUT/PATCH`: Update department details.  
+- `DELETE`: Delete a department.
+**Permissions:** Authenticated users only.
 
 **Example GET Response:**
 ```json
 {
   "id": 1,
   "name": "Engineering",
+  "code": "ENG001",
+  "description": "Handles product development",
   "manager": 2
 }
 ```
@@ -290,8 +291,7 @@ An HTML template displaying the CSRF token.
 ```json
 {
   "start_date": "2025-07-10",
-  "end_date": "2025-07-15",
-  "status": "Pending"
+  "end_date": "2025-07-15"
 }
 ```
 
@@ -468,13 +468,80 @@ An HTML template displaying the CSRF token.
 
 ---
 
+### Employees
+
+#### 1. List Employees
+**Endpoint:** `GET /api/employees/`  
+**Description:** Retrieve a list of all employees.  
+**Sample Response:**
+```json
+[
+  {
+    "id": 1,
+    "first_name": "Jane",
+    "last_name": "Doe",
+    "email": "jane.doe@example.com",
+    "job_title": "Software Engineer",
+    "department": 1,
+    "phone_number": "123-456-7890",
+    "date_of_birth": "1990-05-15",
+    "date_joined": "2025-07-07",
+    "is_active": true
+  }
+]
+```
+
+#### 2. Create Employee
+**Endpoint:** `POST /api/employees/`  
+**Description:** Create a new employee.  
+**Example Payload:**
+```json
+{
+  "first_name": "John",
+  "last_name": "Smith",
+  "email": "john.smith@example.com",
+  "job_title": "Marketing Manager",
+  "department": 2,
+  "phone_number": "987-654-3210",
+  "date_of_birth": "1985-08-20",
+  "is_active": true
+}
+```
+
+#### 3. Retrieve/Update/Delete Employee
+**Endpoint:** `/api/employees/{id}/`  
+**Description:**  
+- `GET`: Retrieve employee details.  
+- `PUT/PATCH`: Update employee details.  
+- `DELETE`: Delete an employee.
+**Permissions:** Authenticated users only.
+
+**Example GET Response:**
+```json
+{
+  "id": 2,
+  "first_name": "John",
+  "last_name": "Smith",
+  "email": "john.smith@example.com",
+  "job_title": "Marketing Manager",
+  "department": 2,
+  "phone_number": "987-654-3210",
+  "date_of_birth": "1985-08-20",
+  "date_joined": "2025-07-07",
+  "is_active": true
+}
+```
+
+---
+
 ## Models Overview
 
 - **CustomUser:** Extends Django's AbstractUser and includes a `role` field (CEO, Manager, HR, Employee).  
-- **Department:** Contains `name` and a reference to a manager (CustomUser).  
-- **LeaveRequest:** Tracks leave details with `employee`, start/end dates, status, and creation time.  
-- **PerformanceReview:** Contains review details with `employee`, `reviewer`, score, comments, and creation time.  
-- **Attendance:** Logs attendance with `employee`, date, status, check-in and check-out times, and creation time.
+- **Department:** Contains `name`, `code`, `description`, and a reference to a manager (`CustomUser`).  
+- **Employee:** Contains personal and job-related information for employees, and is linked to a `Department`.
+- **LeaveRequest:** Tracks leave details with a foreign key to `Employee`, start/end dates, status, and creation time.  
+- **PerformanceReview:** Contains review details with a foreign key to `Employee`, `reviewer` (a `CustomUser`), score, comments, and creation time.  
+- **Attendance:** Logs attendance with a foreign key to `Employee`, date, status, check-in and check-out times, and creation time.
 
 ## Permissions
 
@@ -490,7 +557,7 @@ An HTML template displaying the CSRF token.
 If you encounter errors like "OperationalError: no such table: hr_department", ensure you run the migrations:
 
 ```bash
-python manage.py makemigrations hr
+python manage.py makemigrations
 python manage.py migrate
 ```
 

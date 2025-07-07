@@ -37,7 +37,7 @@ class RegisterView(generics.CreateAPIView):
             )
         except Exception as exc:
             return Response(
-                {'error': f'Failed to register user: {str(exc)}'},
+                {'errors': {'detail': f'Failed to register user: {str(exc)}'}},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -50,13 +50,13 @@ class LoginView(APIView):
             password = request.data.get('password')
             if not username or not password:
                 return Response(
-                    {'error': 'Both username and password are required.'},
+                    {'errors': {'detail': 'Both username and password are required.'}},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             user = authenticate(request, username=username, password=password)
             if not user:
                 return Response(
-                    {'error': 'Invalid username or password.'},
+                    {'errors': {'detail': 'Invalid username or password.'}},
                     status=status.HTTP_401_UNAUTHORIZED
                 )
             login(request, user)
@@ -70,6 +70,6 @@ class LoginView(APIView):
             )
         except Exception as exc:
             return Response(
-                {'error': f'An unexpected error occurred: {str(exc)}'},
+                {'errors': {'detail': f'An unexpected error occurred: {str(exc)}'}},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

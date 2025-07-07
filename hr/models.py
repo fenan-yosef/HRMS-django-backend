@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
+from employee.models import Employee  # Import Employee model
 
 class CustomUserManager(BaseUserManager):
     """Define a model manager for User model with no username field."""
@@ -61,36 +62,38 @@ class CustomUser(AbstractUser):
 
 class Department(models.Model):
     name = models.CharField(max_length=100)
-    manager = models.ForeignKey('CustomUser', on_delete=models.SET_NULL, null=True, related_name='managed_departments')
+    manager = models.ForeignKey('CustomUser', on_delete=models.SET_NULL, null=True, related_name='hr_managed_departments')
+    code = models.CharField(max_length=50, unique=True, default='DEFAULT_CODE')  # updated max_length
+    description = models.TextField(blank=True)
     def __str__(self):
         return self.name
 
 class LeaveRequest(models.Model):
-    employee = models.ForeignKey('CustomUser', on_delete=models.CASCADE, related_name='leave_requests')
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='leave_requests')  # Changed FK
     start_date = models.DateField()
     end_date = models.DateField()
     status = models.CharField(max_length=20, choices=[('Pending', 'Pending'), ('Approved', 'Approved'), ('Rejected', 'Rejected')], default='Pending')
     created_at = models.DateTimeField(auto_now_add=True)
     def __str__(self):
-        return f"{self.employee.username}: {self.start_date} to {self.end_date} ({self.status})"
+        return f"{self.employee.first_name} {self.employee.last_name}: {self.start_date} to {self.end_date} ({self.status})"
 
 class PerformanceReview(models.Model):
-    employee = models.ForeignKey('CustomUser', on_delete=models.CASCADE, related_name='performance_reviews')
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='performance_reviews')  # Changed FK
     reviewer = models.ForeignKey('CustomUser', on_delete=models.SET_NULL, null=True, related_name='reviews_done')
     score = models.IntegerField()
     comments = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     def __str__(self):
-        return f"Review for {self.employee.username} by {self.reviewer.username if self.reviewer else 'N/A'}"
+        return f"Review for {self.employee.first_name} {self.employee.last_name} by {self.reviewer.username if self.reviewer else 'N/A'}"
     class Meta:
         db_table = 'hr_performancereview'
 
 class Attendance(models.Model):
-    employee = models.ForeignKey('CustomUser', on_delete=models.CASCADE, related_name='attendances')
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='attendances')  # Changed FK
     date = models.DateField()
     status = models.CharField(max_length=20, choices=[('Present', 'Present'), ('Absent', 'Absent'), ('Leave', 'Leave')], default='Present')
     check_in_time = models.TimeField(null=True, blank=True)
     check_out_time = models.TimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     def __str__(self):
-        return f"{self.employee.username} on {self.date}: {self.status}"
+        return f"{self.employee.first_name} {self.employee.last_name} on {self.date}: {self.status}"

@@ -14,6 +14,7 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 import dj_database_url
+from datetime import timedelta
 
 load_dotenv()
 
@@ -48,6 +49,8 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'hr', 
     'corsheaders',  # add corsheaders
+    'department',
+    'employee',
 ]
 
 MIDDLEWARE = [
@@ -141,7 +144,14 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
-    ]
+    ],
+    'EXCEPTION_HANDLER': 'hr.utils.custom_exception_handler',
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    # ...other settings if needed...
 }
 
 CORS_ALLOWED_ORIGINS = [

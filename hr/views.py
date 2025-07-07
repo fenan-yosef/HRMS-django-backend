@@ -1,5 +1,6 @@
 from rest_framework import viewsets, permissions
 from .models import CustomUser, Department, LeaveRequest, PerformanceReview, Attendance
+from employee.models import Employee  # Import Employee model
 from .serializers import UserSerializer, DepartmentSerializer, LeaveRequestSerializer, PerformanceReviewSerializer, AttendanceSerializer
 from .permissions import IsCEO, IsHR, IsManager, IsOwner, AnyOf
 from django.shortcuts import render
