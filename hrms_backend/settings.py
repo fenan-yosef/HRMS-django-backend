@@ -29,6 +29,8 @@ ALLOWED_HOSTS = ['hrms-django-backend.onrender.com', 'localhost', '127.0.0.1']
 
 APPEND_SLASH = True
 
+CORS_ALLOW_ALL_ORIGINS = True
+
 
 # Application definition
 
@@ -41,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
+    'corsheaders',
     'hr', 
 ]
 
@@ -52,6 +55,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # Add this
 ]
 
 ROOT_URLCONF = 'hrms_backend.urls'
@@ -136,3 +140,7 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ]
 }
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",  # Allow requests from your frontend
+]
