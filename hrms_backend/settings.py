@@ -11,6 +11,11 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
+from dotenv import load_dotenv
+import dj_database_url
+
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,7 +28,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-v^g*+pwp3*$&u0pubf&okpbskk9rm_fx3&v$g-p0$f(=d&m&c8'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
 ALLOWED_HOSTS = ['hrms-django-backend.onrender.com', 'localhost', '127.0.0.1']
 
@@ -47,6 +52,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',  # add CorsMiddleware
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -80,10 +86,7 @@ WSGI_APPLICATION = 'hrms_backend.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.parse(os.environ.get("DATABASE_URL"))
 }
 
 
@@ -122,6 +125,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -139,10 +144,13 @@ REST_FRAMEWORK = {
     ]
 }
 
-
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # Allow requests from your frontend during development
-    "https://hrms-django-backend.onrender.com"  # Allow requests from your deployed frontend
-    "https://hr-management-system-frontend-tau.vercel.app/" # Allow requests from your deployed frontend
+    "http://localhost:5173",  # development
+    "https://hrms-django-backend.onrender.com",  # deployed backend
+    "https://hr-management-system-frontend-tau.vercel.app",  # deployed frontend on Vercel
 ]
-# CORS_ALLOW_ALL_ORIGINS = True
+
+# Note:
+# - If the Vercel front end still shows "Invalid credentials", verify that the request sends proper data (username/email)
+#   and that CORS is properly recognized.
+# - SQLite is not persistent on Render's ephemeral file system. Consider using a persistent database (e.g. PostgreSQL).
