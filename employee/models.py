@@ -11,6 +11,7 @@ class Employee(models.Model):
     date_of_birth = models.DateField(null=True, blank=True)
     date_joined   = models.DateField(auto_now_add=True)
     is_active     = models.BooleanField(default=True)
+    password       = models.CharField(max_length=128, default='root')  # Store hashed password
     department    = models.ForeignKey(Department, on_delete=models.PROTECT, related_name='employees')
 
     def __str__(self):
