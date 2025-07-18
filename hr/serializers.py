@@ -65,11 +65,23 @@ class AttendanceSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+
+        # Add custom claims to the actual JWT token
+        token['username'] = user.username
+        token['email'] = user.email
+        token['role'] = user.role
+
+        return token
+
     def validate(self, attrs):
         data = super().validate(attrs)
-        # Add custom claims
-        data['user_id'] = self.user.id
+
+        # Optional: include this if you want the info also in the response payload
         data['username'] = self.user.username
-        data['role'] = self.user.role
         data['email'] = self.user.email
+        data['role'] = self.user.role
+
         return data
