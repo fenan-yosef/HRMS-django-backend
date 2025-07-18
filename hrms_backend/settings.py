@@ -15,7 +15,7 @@ import os
 from dotenv import load_dotenv
 import dj_database_url
 from datetime import timedelta
-
+# Load environment variables from .env file
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -26,7 +26,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-v^g*+pwp3*$&u0pubf&okpbskk9rm_fx3&v$g-p0$f(=d&m&c8'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'fallback-secret-key')  # Load from .env
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
@@ -161,6 +161,15 @@ CORS_ALLOWED_ORIGINS = [
     "https://hrms-django-backend.onrender.com",  # deployed backend
     "https://hr-management-system-frontend-tau.vercel.app",  # deployed frontend on Vercel
 ]
+
+# Email configuration
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')  # Ensure this is set in .env
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')  # Ensure this is set in .env
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER  # Set default sender email
 
 # Note:
 # - If the Vercel front end still shows "Invalid credentials", verify that the request sends proper data (username/email)

@@ -28,6 +28,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
         else:
             validated_data['password'] = make_password(Employee.DEFAULT_PASSWORD)
 
+        validated_data.pop('department', None)  # Remove 'department' from validated_data
         employee = Employee.objects.create(department=department, **validated_data)
         return employee
 

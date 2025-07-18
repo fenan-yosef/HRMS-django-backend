@@ -31,5 +31,10 @@ LOGGING = {
             'handlers': ['console', 'file'],
             'level': 'INFO',  # Adjust the level as needed
         },
+        'django.db.backends': {
+            'handlers': ['console', 'file'],
+            'level': 'ERROR',  # Log SQL errors
+            'propagate': False,
+        },
     },
 }
