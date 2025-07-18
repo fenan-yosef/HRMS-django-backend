@@ -9,6 +9,7 @@ urlpatterns = [
     path('api/', include('hr.urls')),
     path('api/departments/', include('department.urls')),
     path('api/employees/', include('employee.urls')),
+    path('api/leaves/', include('leave.urls')),
 
 
     # This is the new line you are adding.

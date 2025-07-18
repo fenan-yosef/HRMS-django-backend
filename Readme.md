@@ -554,10 +554,28 @@ An HTML template displaying the CSRF token.
 
 ## Troubleshooting
 
-If you encounter errors like "OperationalError: no such table: hr_department", ensure you run the migrations:
+- If you encounter errors like "OperationalError: no such table: hr_department" or 
+  "ProgrammingError: column \"name\" of relation \"django_content_type\" does not exist", ensure you run the migrations:
+  
+  ```bash
+  python manage.py makemigrations
+  python manage.py migrate
+  ```
+
+- If you see a DuplicateTable error for the hr app (e.g., "relation \"hr_customuser\" already exists"), you can either:
+  
+  1. Drop the existing hr tables in your database manually, then re-run migrations;  
+  2. Or mark the initial HR migrations as applied without executing them:
+  
+     ```bash
+     python manage.py migrate hr zero --fake
+     python manage.py migrate --fake-initial
+     ```
+
+- If the error persists, you may need to reset the migrations (CAUTION: This will reset your database schema):
 
 ```bash
-python manage.py makemigrations
+python manage.py migrate contenttypes zero
 python manage.py migrate
 ```
 

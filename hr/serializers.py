@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import CustomUser, Department, LeaveRequest, PerformanceReview, Attendance
+from .models import CustomUser, Department, PerformanceReview, Attendance
 from employee.models import Employee  # Import Employee model
 from django.contrib.auth import get_user_model
 from rest_framework.validators import UniqueValidator
@@ -52,10 +52,6 @@ class DepartmentSerializer(serializers.ModelSerializer):
         model = Department
         fields = ['id', 'name', 'manager', 'code', 'description']
 
-class LeaveRequestSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = LeaveRequest
-        fields = '__all__'
 
 class PerformanceReviewSerializer(serializers.ModelSerializer):
     class Meta:
