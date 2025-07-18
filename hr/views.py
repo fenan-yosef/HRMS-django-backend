@@ -8,6 +8,8 @@ from .models import CustomUser, Department, PerformanceReview, Attendance
 from employee.models import Employee  # Import Employee model
 from .serializers import UserSerializer, DepartmentSerializer, PerformanceReviewSerializer, AttendanceSerializer
 from rest_framework.exceptions import ValidationError
+from rest_framework_simplejwt.views import TokenObtainPairView
+from .serializers import CustomTokenObtainPairSerializer
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = CustomUser.objects.all()
@@ -67,3 +69,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [AnyOf(IsCEO, IsHR)]
         return [permissions.IsAuthenticated()]
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
