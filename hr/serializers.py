@@ -3,6 +3,7 @@ from .models import CustomUser, Department, PerformanceReview, Attendance
 from employee.models import Employee  # Import Employee model
 from django.contrib.auth import get_user_model
 from rest_framework.validators import UniqueValidator
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 
 User = get_user_model()
@@ -62,3 +63,10 @@ class AttendanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendance
         fields = '__all__'
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        # Add custom claims or modify the response data if needed
+        data['user_role'] = self.user.role  # Example: Add user role to the token response
+        return data
