@@ -67,6 +67,9 @@ class AttendanceSerializer(serializers.ModelSerializer):
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
-        # Add custom claims or modify the response data if needed
-        data['user_role'] = self.user.role  # Example: Add user role to the token response
+        # Add custom claims
+        data['user_id'] = self.user.id
+        data['username'] = self.user.username
+        data['role'] = self.user.role
+        data['email'] = self.user.email
         return data
