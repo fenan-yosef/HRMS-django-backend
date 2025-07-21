@@ -1,6 +1,5 @@
 from rest_framework import serializers
-from .models import CustomUser, Department, PerformanceReview, Attendance
-from employee.models import Employee  # Import Employee model
+from .models import CustomUser, Department, PerformanceReview, Attendance, Employee  # Import Employee model
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -85,7 +84,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             employee = None
             if not user:
                 # Try to authenticate against the Employee model
-                from employee.models import Employee  # Import here to avoid circular imports
                 try:
                     employee = Employee.objects.get(email=email)
                     if employee and employee.check_password(password):
@@ -120,5 +118,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         data = super().validate(attrs)
         data['email'] = self.user.email
+        data['role'] = self.user.role
+        return data
         data['role'] = self.user.role
         return data
