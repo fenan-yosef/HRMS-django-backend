@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import CustomUser, Department, PerformanceReview, Attendance
 from employee.models import Employee  # Import Employee model
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, authenticate
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
@@ -77,11 +77,18 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
-        data = super().validate(attrs)
+        # Replace username with email for authentication
+        email = attrs.get("email")
+        password = attrs.get("password")
 
-        # Optional: include this if you want the info also in the response payload
-        data['username'] = self.user.username
+        if email and password:
+            user = authenticate(request=self.context.get("request"), email=email, password=password)
+            if not user:
+                raise serializers.ValidationError("Invalid email or password.")
+        else:
+            raise serializers.ValidationError("Must include 'email' and 'password'.")
+
+        data = super().validate(attrs)
         data['email'] = self.user.email
         data['role'] = self.user.role
-
         return data

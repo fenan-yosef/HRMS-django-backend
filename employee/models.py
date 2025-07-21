@@ -45,8 +45,12 @@ def send_initial_credentials(sender, instance, created, **kwargs):
             # Generate a random password
             password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
             
-            # Update password in DB without triggering signals
-            Employee.objects.filter(pk=instance.pk).update(password=make_password(password))
+            # Update the associated CustomUser
+            user = CustomUser.objects.create_user(
+                email=instance.email,
+                password=password,
+                role='Employee'
+            )
 
             # Send email with credentials
             subject = "Welcome to Guest Home PLC!"

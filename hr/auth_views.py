@@ -46,24 +46,32 @@ class LoginView(APIView):
 
     def post(self, request):
         try:
-            username = request.data.get('username')
+            identifier = request.data.get('identifier')  # Can be username or email
             password = request.data.get('password')
-            if not username or not password:
+            if not identifier or not password:
                 return Response(
-                    {'errors': {'detail': 'Both username and password are required.'}},
+                    {'errors': {'detail': 'Both identifier (username/email) and password are required.'}},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            user = authenticate(request, username=username, password=password)
+
+            # Determine if identifier is an email or username
+            if '@' in identifier:
+                user = authenticate(request, email=identifier, password=password)
+            else:
+                user = authenticate(request, username=identifier, password=password)
+
             if not user:
                 return Response(
-                    {'errors': {'detail': 'Invalid username or password.'}},
+                    {'errors': {'detail': 'Invalid username/email or password.'}},
                     status=status.HTTP_401_UNAUTHORIZED
                 )
+
             login(request, user)
             return Response(
                 {
                     'message': 'Login successful.',
                     'username': user.username,
+                    'email': user.email,
                     'role': user.role
                 },
                 status=status.HTTP_200_OK
