@@ -10,6 +10,11 @@ from .serializers import UserSerializer, DepartmentSerializer, PerformanceReview
 from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import CustomTokenObtainPairSerializer
+from django.contrib.auth import authenticate
+from django.http import JsonResponse
+import logging
+
+logger = logging.getLogger(__name__)
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = CustomUser.objects.all()
@@ -72,3 +77,17 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+def login_view(request):
+    try:
+        identifier = request.data.get("identifier")
+        password = request.data.get("password")
+        user = authenticate(request, identifier=identifier, password=password)
+        if user is not None:
+            # ...existing code for successful login...
+            pass
+        else:
+            return JsonResponse({"errors": {"detail": "Invalid username/email or password."}}, status=400)
+    except Exception as e:
+        logger.error(f"Error during login: {e}", exc_info=True)
+        return JsonResponse({"errors": {"detail": "An unexpected error occurred."}}, status=500)

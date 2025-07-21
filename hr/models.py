@@ -38,6 +38,13 @@ class CustomUser(AbstractUser):
     def __str__(self):
         return self.email
 
+    ROLE_CHOICES = [
+        ('admin', 'Admin'),
+        ('manager', 'Manager'),
+        ('employee', 'Employee'),
+    ]
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee')
+
 class Department(models.Model):
     name = models.CharField(max_length=100)
     manager = models.ForeignKey('CustomUser', on_delete=models.SET_NULL, null=True, related_name='hr_managed_departments')

@@ -171,6 +171,34 @@ EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')  # Ensure this is set in .en
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')  # Ensure this is set in .env
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER  # Set default sender email
 
+AUTHENTICATION_BACKENDS = [
+    'hr.auth_backend.CustomAuthBackend',  # Add custom backend
+    'django.contrib.auth.backends.ModelBackend',  # Default backend
+]
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'level': 'ERROR',
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': True,
+        },
+        'hr': {  # Logger for the 'hr' app
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+    },
+}
+
 # Note:
 # - If the Vercel front end still shows "Invalid credentials", verify that the request sends proper data (username/email)
 #   and that CORS is properly recognized.

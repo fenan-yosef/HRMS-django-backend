@@ -97,6 +97,8 @@ Base URL: `/api/`
 **Endpoint:** `POST /api/auth/token/`  
 **Description:** Obtain JWT access and refresh tokens.
 
+**Note:** The authentication process checks both the `CustomUser` and `Employee` models.
+
 **Example Payload:**
 ```json
 {

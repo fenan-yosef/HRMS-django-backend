@@ -45,39 +45,29 @@ class LoginView(APIView):
     permission_classes = (AllowAny,)
 
     def post(self, request):
-        try:
-            identifier = request.data.get('identifier')  # Can be username or email
-            password = request.data.get('password')
-            if not identifier or not password:
-                return Response(
-                    {'errors': {'detail': 'Both identifier (username/email) and password are required.'}},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # Determine if identifier is an email or username
-            if '@' in identifier:
-                user = authenticate(request, email=identifier, password=password)
-            else:
-                user = authenticate(request, username=identifier, password=password)
-
-            if not user:
-                return Response(
-                    {'errors': {'detail': 'Invalid username/email or password.'}},
-                    status=status.HTTP_401_UNAUTHORIZED
-                )
-
-            login(request, user)
+        identifier = request.data.get('identifier')  # Can be email
+        password = request.data.get('password')
+        if not identifier or not password:
             return Response(
-                {
-                    'message': 'Login successful.',
-                    'username': user.username,
-                    'email': user.email,
-                    'role': user.role
-                },
-                status=status.HTTP_200_OK
+                {'errors': {'detail': 'Both identifier (email) and password are required.'}},
+                status=status.HTTP_400_BAD_REQUEST
             )
-        except Exception as exc:
+
+        # Authenticate using email
+        user = authenticate(request, identifier=identifier, password=password)
+
+        if not user:
             return Response(
-                {'errors': {'detail': f'An unexpected error occurred: {str(exc)}'}},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {'errors': {'detail': 'Invalid email or password.'}},
+                status=status.HTTP_401_UNAUTHORIZED
             )
+
+        login(request, user)
+        return Response(
+            {
+                'message': 'Login successful.',
+                'email': user.email,
+                'role': user.role
+            },
+            status=status.HTTP_200_OK
+        )
