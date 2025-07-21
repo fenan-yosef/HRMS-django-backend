@@ -42,6 +42,7 @@ class CustomUser(AbstractUser):
         ('admin', 'Admin'),
         ('manager', 'Manager'),
         ('employee', 'Employee'),
+        ('hr', 'HR'),
     ]
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee')
 
@@ -73,18 +74,16 @@ class Attendance(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     def __str__(self):
         return f"{self.employee.first_name} {self.employee.last_name} on {self.date}: {self.status}"
-        return self.name
 
-class PerformanceReview(models.Model):
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='performance_reviews')  # Changed FK
-    reviewer = models.ForeignKey('CustomUser', on_delete=models.SET_NULL, null=True, related_name='reviews_done')
-    score = models.IntegerField()
-    comments = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    def __str__(self):
-        return f"Review for {self.employee.first_name} {self.employee.last_name} by {self.reviewer.username if self.reviewer else 'N/A'}"
-    class Meta:
-        db_table = 'hr_performancereview'
+class Employee(models.Model):
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='employee_profile')
+    ROLE_CHOICES = [
+        ('junior', 'Junior Employee'),
+        ('senior', 'Senior Employee'),
+        ('lead', 'Team Lead'),
+    ]
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='junior')
+    # ...existing code...
 
 class Attendance(models.Model):
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='attendances')  # Changed FK
