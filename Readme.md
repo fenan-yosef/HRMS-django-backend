@@ -102,7 +102,7 @@ Base URL: `/api/`
 **Example Payload:**
 ```json
 {
-  "username": "hr_manager",
+  "email": "hr_manager",
   "password": "your_password"
 }
 ```
@@ -485,6 +485,13 @@ An HTML template displaying the CSRF token.
     "email": "jane.doe@example.com",
     "job_title": "Software Engineer",
     "department": 1,
+    "department_details": {
+      "id": 1,
+      "name": "Engineering",
+      "code": "ENG001",
+      "description": "Handles product development",
+      "manager": 2
+    },
     "phone_number": "123-456-7890",
     "date_of_birth": "1990-05-15",
     "date_joined": "2025-07-07",
@@ -506,6 +513,32 @@ An HTML template displaying the CSRF token.
   "department": 2,
   "phone_number": "987-654-3210",
   "date_of_birth": "1985-08-20",
+  "is_active": true,
+  "password": "optional_custom_password"
+}
+```
+- `department`: Department ID (integer).
+- `password`: Optional. If omitted, a default password is set.
+
+**Sample Response:**
+```json
+{
+  "id": 2,
+  "first_name": "John",
+  "last_name": "Smith",
+  "email": "john.smith@example.com",
+  "job_title": "Marketing Manager",
+  "department": 2,
+  "department_details": {
+    "id": 2,
+    "name": "Marketing",
+    "code": "MKT001",
+    "description": "Handles market research and campaigns",
+    "manager": 4
+  },
+  "phone_number": "987-654-3210",
+  "date_of_birth": "1985-08-20",
+  "date_joined": "2025-07-07",
   "is_active": true
 }
 ```
@@ -527,12 +560,166 @@ An HTML template displaying the CSRF token.
   "email": "john.smith@example.com",
   "job_title": "Marketing Manager",
   "department": 2,
+  "department_details": {
+    "id": 2,
+    "name": "Marketing",
+    "code": "MKT001",
+    "description": "Handles market research and campaigns",
+    "manager": 4
+  },
   "phone_number": "987-654-3210",
   "date_of_birth": "1985-08-20",
   "date_joined": "2025-07-07",
   "is_active": true
 }
 ```
+**Example Update Payload:**
+```json
+{
+  "first_name": "John",
+  "last_name": "Smith",
+  "job_title": "Senior Marketing Manager",
+  "department": 2,
+  "phone_number": "987-654-3210",
+  "date_of_birth": "1985-08-20",
+  "is_active": true
+}
+```
+
+**Note:**  
+- To update the department, provide the department ID in the `department` field.
+- The `department_details` field is read-only and always included in responses.
+
+---
+
+## Departments API
+
+All endpoints require authentication (JWT token in `Authorization: Bearer <token>` header).
+
+### List Departments
+
+**GET** `/api/departments/`
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "name": "Engineering",
+    "code": "ENG001",
+    "description": "Handles all engineering tasks.",
+    "created_at": "2024-07-21T10:00:00Z",
+    "manager": {
+      "id": 2,
+      "first_name": "Jane",
+      "last_name": "Doe"
+    }
+  },
+  {
+    "id": 2,
+    "name": "Marketing",
+    "code": "MKT001",
+    "description": "Handles market research and campaigns.",
+    "created_at": "2024-07-21T11:00:00Z",
+    "manager": null
+  }
+]
+```
+
+### Retrieve Department
+
+**GET** `/api/departments/{id}/`
+
+**Response:**
+```json
+{
+  "id": 1,
+  "name": "Engineering",
+  "code": "ENG001",
+  "description": "Handles all engineering tasks.",
+  "created_at": "2024-07-21T10:00:00Z",
+  "manager": {
+    "id": 2,
+    "first_name": "Jane",
+    "last_name": "Doe"
+  }
+}
+```
+
+### Create Department
+
+**POST** `/api/departments/`
+
+**Request:**
+```json
+{
+  "name": "Finance",
+  "code": "FIN",
+  "description": "Handles company finances.",
+  "manager": 3
+}
+```
+
+**Response:**
+```json
+{
+  "id": 2,
+  "name": "Finance",
+  "code": "FIN",
+  "description": "Handles company finances.",
+  "created_at": "2024-07-21T11:00:00Z",
+  "manager": 3
+}
+```
+
+### Update Department
+
+**PUT/PATCH** `/api/departments/{id}/`
+
+**Request:**
+```json
+{
+  "name": "Finance & Accounting",
+  "description": "Handles all financial and accounting matters."
+}
+```
+
+**Response:**
+```json
+{
+  "id": 2,
+  "name": "Finance & Accounting",
+  "code": "FIN",
+  "description": "Handles all financial and accounting matters.",
+  "created_at": "2024-07-21T11:00:00Z",
+  "manager": 3
+}
+```
+
+### Delete Department
+
+**DELETE** `/api/departments/{id}/`
+
+**Response:**  
+HTTP 204 No Content
+
+---
+
+
+### Department Model Fields
+
+- `id`: integer, auto-generated
+- `name`: string, required, max 100 chars
+- `code`: string, required, unique, max 10 chars
+- `description`: string, optional
+- `created_at`: datetime, auto-generated
+- `manager`: object (with `id`, `first_name`, `last_name`), or `null`
+
+### Notes
+
+- Only authenticated users can access these endpoints.
+- The `manager` field in responses is an object with `id`, `first_name`, and `last_name` (or `null` if not set), matching the API's use of a nested serializer.
+- See `department/models.py` and `department/serializers.py` for more details.
 
 ---
 
