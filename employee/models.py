@@ -42,6 +42,7 @@ class Employee(models.Model):
 def send_initial_credentials(sender, instance, created, **kwargs):
     if created:
         try:
+            from hr.models import CustomUser
             # Generate a random password
             password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
             
