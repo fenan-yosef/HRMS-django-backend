@@ -84,8 +84,15 @@ class MeView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        serializer = UserSerializer(request.user)
-        return Response(serializer.data)
+        try:
+            serializer = UserSerializer(request.user)
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"Error retrieving user data: {e}", exc_info=True)
+            return Response(
+                {'errors': {'detail': 'Unable to retrieve user information.'}},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 def login_view(request):
     try:
