@@ -7,6 +7,7 @@ from django.middleware.csrf import get_token
 from .models import CustomUser, Department, PerformanceReview, Attendance
 from employee.models import Employee  # Import Employee model
 from .serializers import UserSerializer, DepartmentSerializer, PerformanceReviewSerializer, AttendanceSerializer
+from rest_framework.views import APIView
 from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import CustomTokenObtainPairSerializer
@@ -77,6 +78,14 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+class MeView(APIView):
+    """Endpoint to retrieve data for the current authenticated user."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)
 
 def login_view(request):
     try:

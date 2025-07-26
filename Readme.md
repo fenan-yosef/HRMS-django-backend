@@ -62,6 +62,21 @@ This project is a Django-based REST API for a Human Resource Management System (
 Base URL: `/api/`
 
 ---
+#### 5. Get Current User
+**Endpoint:** `GET /api/auth/me/`
+**Description:** Retrieve the current authenticated user's profile.
+**Authentication:** Requires JWT Bearer token in `Authorization: Bearer <token>` header.
+
+**Sample Response:**
+```json
+{
+  "id": 1,
+  "username": "ceo_user",
+  "email": "ceo@example.com",
+  "role": "CEO"
+}
+```
+---
 
 ### Authentication
 

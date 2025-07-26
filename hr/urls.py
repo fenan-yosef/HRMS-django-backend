@@ -6,7 +6,7 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
-from .views import CustomTokenObtainPairView
+from .views import CustomTokenObtainPairView, MeView
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
@@ -20,4 +20,5 @@ urlpatterns = [
     path('auth/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('get-csrf-token/', get_csrf_token_view, name='get_csrf_token'),
+    path('auth/me/', MeView.as_view(), name='auth_me'),
 ]
