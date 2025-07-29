@@ -1,3 +1,4 @@
+from django.utils import timezone
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -84,6 +85,20 @@ class Employee(models.Model):
     ]
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='junior')
     # ...existing code...
+
+# Password reset OTP model
+class PasswordResetOTP(models.Model):
+    email = models.EmailField()
+    otp = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+
+    def is_expired(self):
+        # OTP valid for 10 minutes
+        return (timezone.now() - self.created_at).total_seconds() > 600
+
+    def __str__(self):
+        return f"{self.email} - {self.otp} ({'used' if self.is_used else 'active'})"
 
 class Attendance(models.Model):
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='attendances')  # Changed FK

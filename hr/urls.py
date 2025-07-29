@@ -7,6 +7,7 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
 from .views import CustomTokenObtainPairView, MeView
+from . import password_reset
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
@@ -21,4 +22,6 @@ urlpatterns = [
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('get-csrf-token/', get_csrf_token_view, name='get_csrf_token'),
     path('auth/me/', MeView.as_view(), name='auth_me'),
+    path('auth/request-password-reset/', password_reset.RequestPasswordResetView.as_view(), name='request_password_reset'),
+    path('auth/reset-password/', password_reset.ResetPasswordView.as_view(), name='reset_password'),
 ]

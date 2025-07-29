@@ -85,13 +85,55 @@ class MeView(APIView):
 
     def get(self, request):
         try:
-            serializer = UserSerializer(request.user)
-            return Response(serializer.data)
+            user = request.user
+            data = UserSerializer(user).data
+            # If the user is an employee, fetch first_name and last_name from Employee model
+            if user.role.lower() == 'employee':
+                employee = None
+                try:
+                    if hasattr(user, 'employee_profile'):
+                        employee = user.employee_profile
+                    else:
+                        from employee.models import Employee as EmployeeModel
+                        employee = EmployeeModel.objects.filter(email=user.email).first()
+                except Exception as e:
+                    logger.warning(f"Could not fetch Employee profile for user {user.email}: {e}")
+                if employee:
+                    data['first_name'] = employee.first_name
+                    data['last_name'] = employee.last_name
+            return Response(data)
         except Exception as e:
             logger.error(f"Error retrieving user data: {e}", exc_info=True)
             return Response(
                 {'errors': {'detail': 'Unable to retrieve user information.'}},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def put(self, request):
+        user = request.user
+        data = request.data.copy()
+        try:
+            # Update CustomUser fields
+            user_serializer = UserSerializer(user, data=data, partial=True)
+            user_serializer.is_valid(raise_exception=True)
+            user_serializer.save()
+
+            # If employee, update Employee fields as well
+            if user.role.lower() == 'employee':
+                employee = getattr(user, 'employee_profile', None)
+                if employee:
+                    from employee.serializers import EmployeeSerializer
+                    # Only update fields that exist on Employee
+                    emp_data = {k: v for k, v in data.items() if k in EmployeeSerializer.Meta.fields or k == 'department'}
+                    emp_serializer = EmployeeSerializer(employee, data=emp_data, partial=True, context={'request': request})
+                    emp_serializer.is_valid(raise_exception=True)
+                    emp_serializer.save()
+            return Response({'message': 'Profile updated successfully.'})
+        except Exception as e:
+            logger.error(f"Error updating user profile: {e}", exc_info=True)
+            return Response(
+                {'errors': {'detail': 'Unable to update user information.'}},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
 def login_view(request):
