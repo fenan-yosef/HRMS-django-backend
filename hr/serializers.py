@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import CustomUser, Department, PerformanceReview, Attendance, Employee  # Import Employee model
+from .models import CustomUser, Department, PerformanceReview, Attendance
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -81,45 +81,13 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         if email and password:
             user = authenticate(request=self.context.get("request"), username=email, password=password)
-            employee = None
-            if not user:
-                # Try to authenticate against the Employee model
-                try:
-                    employee = Employee.objects.get(email=email)
-                    if employee and employee.check_password(password):
-                        user = employee  # Set user to the employee instance
-                    else:
-                        employee = None
-                except Employee.DoesNotExist:
-                    employee = None
-
             if not user:
                 raise serializers.ValidationError("Invalid email or password.")
-
-            if isinstance(user, Employee):
-                # If the user is an Employee, create a CustomUser instance for the token
-                # This assumes that you want to use the CustomUser model for JWT
-                # You might need to adjust this based on your specific requirements
-                from .models import CustomUser
-                try:
-                    custom_user = CustomUser.objects.get(email=user.email)
-                except CustomUser.DoesNotExist:
-                    # Create a CustomUser for the employee if one doesn't exist
-                    custom_user = CustomUser.objects.create_user(
-                        email=user.email,
-                        password=password,  # Consider generating a new password
-                        # Set other fields as needed
-                    )
-                user = custom_user  # Use the CustomUser instance for token generation
-
-
         else:
             raise serializers.ValidationError("Must include 'email' and 'password'.")
 
         data = super().validate(attrs)
         data['email'] = self.user.email
-        data['role'] = self.user.role
-        return data
         data['role'] = self.user.role
         return data
 

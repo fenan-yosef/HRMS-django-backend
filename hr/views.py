@@ -5,7 +5,6 @@ import traceback
 from django.shortcuts import render
 from django.middleware.csrf import get_token
 from .models import CustomUser, Department, PerformanceReview, Attendance
-from employee.models import Employee  # Import Employee model
 from .serializers import UserSerializer, DepartmentSerializer, PerformanceReviewSerializer, AttendanceSerializer
 from rest_framework.views import APIView
 from rest_framework.exceptions import ValidationError
@@ -22,6 +21,13 @@ logger = logging.getLogger(__name__)
 class UserViewSet(viewsets.ModelViewSet):
     queryset = CustomUser.objects.all()
     serializer_class = UserSerializer
+
+    def get_queryset(self):
+        queryset = CustomUser.objects.all()
+        role = self.request.query_params.get('role')
+        if role:
+            queryset = queryset.filter(role__iexact=role)
+        return queryset
 
     def get_permissions(self):
         if self.request.method in ['POST', 'PUT', 'DELETE']:
@@ -87,20 +93,10 @@ class MeView(APIView):
         try:
             user = request.user
             data = UserSerializer(user).data
-            # If the user is an employee, fetch first_name and last_name from Employee model
+            # If the user is an employee, fetch first_name and last_name from CustomUser
             if user.role.lower() == 'employee':
-                employee = None
-                try:
-                    if hasattr(user, 'employee_profile'):
-                        employee = user.employee_profile
-                    else:
-                        from employee.models import Employee as EmployeeModel
-                        employee = EmployeeModel.objects.filter(email=user.email).first()
-                except Exception as e:
-                    logger.warning(f"Could not fetch Employee profile for user {user.email}: {e}")
-                if employee:
-                    data['first_name'] = employee.first_name
-                    data['last_name'] = employee.last_name
+                data['first_name'] = user.first_name
+                data['last_name'] = user.last_name
             return Response(data)
         except Exception as e:
             logger.error(f"Error retrieving user data: {e}", exc_info=True)
@@ -117,17 +113,6 @@ class MeView(APIView):
             user_serializer = UserSerializer(user, data=data, partial=True)
             user_serializer.is_valid(raise_exception=True)
             user_serializer.save()
-
-            # If employee, update Employee fields as well
-            if user.role.lower() == 'employee':
-                employee = getattr(user, 'employee_profile', None)
-                if employee:
-                    from employee.serializers import EmployeeSerializer
-                    # Only update fields that exist on Employee
-                    emp_data = {k: v for k, v in data.items() if k in EmployeeSerializer.Meta.fields or k == 'department'}
-                    emp_serializer = EmployeeSerializer(employee, data=emp_data, partial=True, context={'request': request})
-                    emp_serializer.is_valid(raise_exception=True)
-                    emp_serializer.save()
             return Response({'message': 'Profile updated successfully.'})
         except Exception as e:
             logger.error(f"Error updating user profile: {e}", exc_info=True)
@@ -152,7 +137,7 @@ def login_view(request):
 
 @api_view(['GET'])
 def get_high_level_users(request):
-    roles = ['hr', 'manager', 'admin']
+    roles = ['hr', 'manager', 'ceo']
     users = CustomUser.objects.filter(role__in=roles)
     serializer = HighLevelUserSerializer(users, many=True)
     return Response(serializer.data)

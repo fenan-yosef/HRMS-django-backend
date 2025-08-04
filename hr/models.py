@@ -1,8 +1,25 @@
+from django.db import models
 from django.utils import timezone
 from django.contrib.auth.models import AbstractUser, BaseUserManager
+class SoftDeleteManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(deleted_at__isnull=True)
+
+class SoftDeleteModel(models.Model):
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    objects = SoftDeleteManager()
+    all_objects = models.Manager()  # includes soft-deleted
+
+    class Meta:
+        abstract = True
+
+    def delete(self, using=None, keep_parents=False):
+        self.deleted_at = timezone.now()
+        self.save(update_fields=['deleted_at'])
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from employee.models import Employee  # Import Employee model
+from django.conf import settings
 
 class CustomUserManager(BaseUserManager):
     """Define a model manager for User model with no username field."""
@@ -27,7 +44,7 @@ class CustomUserManager(BaseUserManager):
         extra_fields.setdefault('is_superuser', True)
         return self._create_user(email, password, **extra_fields)
 
-class CustomUser(AbstractUser):
+class CustomUser(AbstractUser, SoftDeleteModel):
     username = None  # Remove username field
     email = models.EmailField(_('email address'), unique=True)
 
@@ -47,7 +64,20 @@ class CustomUser(AbstractUser):
     ]
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee')
 
-class Department(models.Model):
+    # Add employee-specific fields from the old Employee table
+    job_title = models.CharField(max_length=100, blank=True, null=True)
+    phone_number = models.CharField(max_length=20, blank=True, null=True)
+    date_of_birth = models.DateField(null=True, blank=True)
+    # Link to department
+    department = models.ForeignKey(
+        'department.Department',
+        on_delete=models.PROTECT,
+        related_name='custom_users',  # renamed to avoid clash with Employee.employees
+        null=True,
+        blank=True
+    )
+
+class Department(SoftDeleteModel):
     name = models.CharField(max_length=100)
     manager = models.ForeignKey('CustomUser', on_delete=models.SET_NULL, null=True, related_name='hr_managed_departments')
     code = models.CharField(max_length=50, unique=True, default='DEFAULT_CODE')  # updated max_length
@@ -55,8 +85,12 @@ class Department(models.Model):
     def __str__(self):
         return self.name
 
-class PerformanceReview(models.Model):
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='performance_reviews')  # Changed FK
+class PerformanceReview(SoftDeleteModel):
+    employee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='performance_reviews'
+    )
     reviewer = models.ForeignKey('CustomUser', on_delete=models.SET_NULL, null=True, related_name='reviews_done')
     score = models.IntegerField()
     comments = models.TextField()
@@ -66,25 +100,25 @@ class PerformanceReview(models.Model):
     class Meta:
         db_table = 'hr_performancereview'
 
-class Attendance(models.Model):
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='attendances')  # Changed FK
+# Add Attendance model back to hr.models
+class Attendance(SoftDeleteModel):
+    employee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='attendances'
+    )
     date = models.DateField()
-    status = models.CharField(max_length=20, choices=[('Present', 'Present'), ('Absent', 'Absent'), ('Leave', 'Leave')], default='Present')
+    status = models.CharField(
+        max_length=20,
+        choices=[('Present', 'Present'), ('Absent', 'Absent'), ('Leave', 'Leave')],
+        default='Present'
+    )
     check_in_time = models.TimeField(null=True, blank=True)
     check_out_time = models.TimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
     def __str__(self):
         return f"{self.employee.first_name} {self.employee.last_name} on {self.date}: {self.status}"
-
-class Employee(models.Model):
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='employee_profile')
-    ROLE_CHOICES = [
-        ('junior', 'Junior Employee'),
-        ('senior', 'Senior Employee'),
-        ('lead', 'Team Lead'),
-    ]
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='junior')
-    # ...existing code...
 
 # Password reset OTP model
 class PasswordResetOTP(models.Model):
@@ -100,12 +134,3 @@ class PasswordResetOTP(models.Model):
     def __str__(self):
         return f"{self.email} - {self.otp} ({'used' if self.is_used else 'active'})"
 
-class Attendance(models.Model):
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='attendances')  # Changed FK
-    date = models.DateField()
-    status = models.CharField(max_length=20, choices=[('Present', 'Present'), ('Absent', 'Absent'), ('Leave', 'Leave')], default='Present')
-    check_in_time = models.TimeField(null=True, blank=True)
-    check_out_time = models.TimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    def __str__(self):
-        return f"{self.employee.first_name} {self.employee.last_name} on {self.date}: {self.status}"

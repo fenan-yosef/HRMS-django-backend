@@ -14,32 +14,51 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
 
     def create(self, request, *args, **kwargs):
+        import random
+        import string
+        from django.core.mail import send_mail
+        from django.conf import settings
+
         serializer = self.get_serializer(data=request.data)
-        # Validate input
         try:
             serializer.is_valid(raise_exception=True)
         except ValidationError as ve:
-            return Response(
-                {'errors': ve.detail},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        # Attempt to create user
+            return Response({'errors': ve.detail}, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data.copy()
+        password = data.get('password')
+        if not password:
+            password = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+            data['password'] = password
+
         try:
-            self.perform_create(serializer)
+            user = User.objects.create_user(
+                username=data['username'],
+                email=data['email'],
+                password=password,
+                role=data.get('role', 'Employee')
+            )
+            # Send email with password
+            send_mail(
+                subject="Welcome to HRMS - Your Account Details",
+                message=f"Hello {user.username},\n\nYour account has been created.\nEmail: {user.email}\nPassword: {password}\nPlease change your password after first login.",
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
             headers = self.get_success_headers(serializer.data)
-            return Response(
-                {
-                    'message': 'User registered successfully.',
-                    'user': serializer.data
-                },
-                status=status.HTTP_201_CREATED,
-                headers=headers
-            )
+            response_data = {
+                'message': 'User registered successfully and email sent.',
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'role': user.role
+                }
+            }
+            return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
         except Exception as exc:
-            return Response(
-                {'errors': {'detail': f'Failed to register user: {str(exc)}'}},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'errors': {'detail': f'Failed to register user: {str(exc)}'}}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class LoginView(APIView):
     permission_classes = (AllowAny,)

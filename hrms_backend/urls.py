@@ -8,7 +8,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('hr.urls')),
     path('api/departments/', include('department.urls')),
-    path('api/employees/', include('employee.urls')),
+    # Removed employee.urls as the app is deprecated
     path('api/leaves/', include('leave.urls')),
 
 

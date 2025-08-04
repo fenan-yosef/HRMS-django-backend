@@ -12,7 +12,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('auth', '0012_alter_user_first_name_max_length'),
-        ('employee', '__first__'),
+        ('hr', '__first__'),
     ]
 
     operations = [
@@ -49,7 +49,7 @@ class Migration(migrations.Migration):
                 ('check_in_time', models.TimeField(blank=True, null=True)),
                 ('check_out_time', models.TimeField(blank=True, null=True)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('employee', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='attendances', to='employee.employee')),
+                ('employee', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='attendances', to=settings.AUTH_USER_MODEL)),
             ],
         ),
         migrations.CreateModel(
@@ -69,7 +69,7 @@ class Migration(migrations.Migration):
                 ('score', models.IntegerField()),
                 ('comments', models.TextField()),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('employee', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='performance_reviews', to='employee.employee')),
+                ('employee', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='performance_reviews', to=settings.AUTH_USER_MODEL)),
                 ('reviewer', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='reviews_done', to=settings.AUTH_USER_MODEL)),
             ],
             options={

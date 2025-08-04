@@ -1,8 +1,9 @@
 # filepath: department/models.py
 from django.db import models
+from hr.models import SoftDeleteModel
 from django.conf import settings
 
-class Department(models.Model):
+class Department(SoftDeleteModel):
     name        = models.CharField(max_length=100)
     code        = models.CharField(max_length=10, unique=True)
     description = models.TextField(blank=True)

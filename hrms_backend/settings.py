@@ -50,7 +50,7 @@ INSTALLED_APPS = [
     'hr', 
     'corsheaders',  # add corsheaders
     'department',
-    'employee',
+    # 'employee',  # keep for migration
     'leave',
 ]
 

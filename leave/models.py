@@ -1,14 +1,16 @@
 from django.db import models
-from employee.models import Employee
+from hr.models import CustomUser
 
-class LeaveRequest(models.Model):
+from hr.models import SoftDeleteModel
+
+class LeaveRequest(SoftDeleteModel):
     STATUS_CHOICES = [
         ('PENDING', 'Pending'),
         ('APPROVED', 'Approved'),
         ('DENIED', 'Denied'),
     ]
 
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='leave_requests')
+    employee = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='leave_requests')
     start_date = models.DateField()
     end_date = models.DateField()
     reason = models.TextField(blank=True)
