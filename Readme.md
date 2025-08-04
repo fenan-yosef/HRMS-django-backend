@@ -104,6 +104,8 @@ Returns the authenticated user's profile.
   "username": "new_employee",
   "email": "employee@example.com",
   "role": "Employee",
+  "first_name": "John",
+  "last_name": "Doe",
   "phone_number": "123-456-7890",
   "is_active": true
 }
@@ -115,7 +117,11 @@ Returns the authenticated user's profile.
   "id": 2,
   "username": "hr_manager",
   "email": "hr_manager@example.com",
-  "role": "HR"
+  "role": "HR",
+  "first_name": "Alice",
+  "last_name": "Smith",
+  "phone_number": "987-654-3210",
+  "is_active": true
 }
 ```
 

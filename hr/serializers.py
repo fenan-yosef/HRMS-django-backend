@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import CustomUser, Department, PerformanceReview, Attendance
+from department.serializers import DepartmentSerializer
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -39,10 +40,14 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False)
+    department = DepartmentSerializer(read_only=True)
 
     class Meta:
         model = CustomUser
-        fields = ['id', 'username', 'email', 'role', 'password', 'first_name', 'last_name', 'phone_number', 'is_active']
+        fields = [
+            'id', 'email', 'role', 'password', 'first_name', 'last_name',
+            'phone_number', 'is_active', 'job_title', 'date_of_birth', 'department'
+        ]
 
     def create(self, validated_data):
         return User.objects.create_user(**validated_data)
