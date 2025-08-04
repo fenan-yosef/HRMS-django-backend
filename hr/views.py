@@ -14,6 +14,8 @@ from .serializers import CustomTokenObtainPairSerializer
 from django.contrib.auth import authenticate
 from django.http import JsonResponse
 import logging
+from rest_framework.decorators import api_view
+from .serializers import HighLevelUserSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +56,6 @@ class PerformanceReviewViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [AnyOf(IsCEO, IsHR, IsManager)]
         return [permissions.IsAuthenticated()]
-
-class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.all()
     serializer_class = AttendanceSerializer
 
@@ -149,3 +149,10 @@ def login_view(request):
     except Exception as e:
         logger.error(f"Error during login: {e}", exc_info=True)
         return JsonResponse({"errors": {"detail": "An unexpected error occurred."}}, status=500)
+
+@api_view(['GET'])
+def get_high_level_users(request):
+    roles = ['hr', 'manager', 'admin']
+    users = CustomUser.objects.filter(role__in=roles)
+    serializer = HighLevelUserSerializer(users, many=True)
+    return Response(serializer.data)

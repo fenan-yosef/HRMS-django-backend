@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import UserViewSet, get_csrf_token_view, PerformanceReviewViewSet, AttendanceViewSet
+from .views import UserViewSet, get_csrf_token_view, PerformanceReviewViewSet, get_high_level_users
 from .auth_views import RegisterView, LoginView
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -12,7 +12,6 @@ from . import password_reset
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
 router.register(r'performance-reviews', PerformanceReviewViewSet)
-router.register(r'attendances', AttendanceViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -24,4 +23,5 @@ urlpatterns = [
     path('auth/me/', MeView.as_view(), name='auth_me'),
     path('auth/request-password-reset/', password_reset.RequestPasswordResetView.as_view(), name='request_password_reset'),
     path('auth/reset-password/', password_reset.ResetPasswordView.as_view(), name='reset_password'),
+    path('high-level-users/', get_high_level_users, name='high_level_users'),
 ]
