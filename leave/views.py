@@ -36,4 +36,15 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
             logger.exception("Error deleting leave request")
             return Response({"error": "An error occurred while deleting the leave request."}, status=500)
 
+    def perform_create(self, serializer):
+        user = self.request.user
+        # If HR, allow specifying employee; else, force employee to self
+        if hasattr(user, 'role') and user.role == 'HR':
+            employee_id = self.request.data.get('employee')
+            if not employee_id:
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({'employee': 'This field is required for HR.'})
+            serializer.save(employee_id=employee_id)
+        else:
+            serializer.save(employee=user)
     # Optionally, add logging to other methods as well (e.g., list, retrieve)
