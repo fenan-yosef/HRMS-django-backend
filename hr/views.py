@@ -1,4 +1,6 @@
 from rest_framework import viewsets, permissions, status
+from django.utils import timezone
+from django.db import models
 from .permissions import AnyOf, IsCEO, IsHR, IsManager
 from rest_framework.response import Response
 import traceback
@@ -93,10 +95,35 @@ class MeView(APIView):
         try:
             user = request.user
             data = UserSerializer(user).data
-            # If the user is an employee, fetch first_name and last_name from CustomUser
+            dashboard = {}
+            # Employee dashboard metrics
             if user.role.lower() == 'employee':
-                data['first_name'] = user.first_name
-                data['last_name'] = user.last_name
+                from leave.models import LeaveRequest
+                from hr.models import PerformanceReview, CustomUser
+                # My Leave Days Used
+                approved_leaves = LeaveRequest.objects.filter(employee=user, status='APPROVED')
+                total_days = sum((leave.end_date - leave.start_date).days + 1 for leave in approved_leaves)
+                dashboard['my_leave_days_used'] = total_days
+                # My Pending Requests
+                pending_requests = LeaveRequest.objects.filter(employee=user, status='PENDING').count()
+                dashboard['my_pending_requests'] = pending_requests
+                # Days Until Next Review
+                next_review = PerformanceReview.objects.filter(employee=user, created_at__gt=timezone.now()).order_by('created_at').first()
+                if next_review:
+                    days_until_review = (next_review.created_at.date() - timezone.now().date()).days
+                else:
+                    days_until_review = None
+                dashboard['days_until_next_review'] = days_until_review
+                # My Team Size (employees in same department)
+                team_size = CustomUser.objects.filter(department=user.department, role='employee').count() if user.department else 0
+                dashboard['my_team_size'] = team_size
+            # Manager dashboard metrics
+            if user.role.lower() == 'manager':
+                from hr.models import CustomUser
+                # My Team Size: count employees in manager's department
+                team_size = CustomUser.objects.filter(department=user.department, role='employee').count() if user.department else 0
+                dashboard['my_team_size'] = team_size
+            data['dashboard'] = dashboard
             return Response(data)
         except Exception as e:
             logger.error(f"Error retrieving user data: {e}", exc_info=True)
