@@ -3,6 +3,7 @@ from .models import LeaveRequest
 from hr.models import CustomUser
 
 class LeaveRequestSerializer(serializers.ModelSerializer):
+    employee = serializers.PrimaryKeyRelatedField(read_only=True)
     employee_details = serializers.SerializerMethodField()
 
     class Meta:

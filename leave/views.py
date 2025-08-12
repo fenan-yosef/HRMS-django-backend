@@ -11,7 +11,13 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
     """
     A viewset for viewing and editing leave request instances.
     """
-    queryset = LeaveRequest.objects.all()
+    def get_queryset(self):
+        user = self.request.user
+        # Employees only see their own leave requests
+        if hasattr(user, 'role') and user.role == 'Employee':
+            return LeaveRequest.objects.filter(employee=user)
+        # HR and others see all
+        return LeaveRequest.objects.all()
     serializer_class = LeaveRequestSerializer
     permission_classes = [IsAuthenticated]
 
