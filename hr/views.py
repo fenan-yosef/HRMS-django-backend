@@ -88,6 +88,20 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 class MeView(APIView):
+    def patch(self, request):
+        user = request.user
+        data = request.data.copy()
+        try:
+            user_serializer = UserSerializer(user, data=data, partial=True)
+            user_serializer.is_valid(raise_exception=True)
+            user_serializer.save()
+            return Response({'message': 'Profile updated successfully.'})
+        except Exception as e:
+            logger.error(f"Error updating user profile (PATCH): {e}", exc_info=True)
+            return Response(
+                {'errors': {'detail': 'Unable to update user information.'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
     """Endpoint to retrieve data for the current authenticated user."""
     permission_classes = [permissions.IsAuthenticated]
 
