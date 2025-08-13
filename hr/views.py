@@ -6,7 +6,8 @@ from rest_framework.response import Response
 import traceback
 from django.shortcuts import render
 from django.middleware.csrf import get_token
-from .models import CustomUser, Department, PerformanceReview, Attendance
+from .models import CustomUser, PerformanceReview, Attendance
+from department.models import Department
 from .serializers import UserSerializer, DepartmentSerializer, PerformanceReviewSerializer, AttendanceSerializer
 from rest_framework.views import APIView
 from rest_framework.exceptions import ValidationError
@@ -222,6 +223,86 @@ class MeView(APIView):
                     created_at__gte=first_of_month
                 ).count() if user.department else 0
                 dashboard['performance_reviews_this_month'] = reviews_month
+            # CEO dashboard metrics
+            if user.role.lower() == 'ceo':
+                from hr.models import CustomUser, PerformanceReview, Attendance
+                from leave.models import LeaveRequest
+                from django.db.models import Count, Avg, Max
+                from datetime import timedelta
+                today = timezone.now().date()
+                now = timezone.now()
+                first_of_month = today.replace(day=1)
+                last_30 = now - timedelta(days=30)
+                # Headcount metrics
+                total_users = CustomUser.objects.filter(deleted_at__isnull=True).count()
+                employees = CustomUser.objects.filter(role__iexact='employee').count()
+                managers = CustomUser.objects.filter(role__iexact='manager').count()
+                hr_count = CustomUser.objects.filter(role__iexact='hr').count()
+                dashboard['headcount'] = {
+                    'total_active_users': total_users,
+                    'employees': employees,
+                    'managers': managers,
+                    'hr': hr_count,
+                }
+                # Department distribution
+                dept_counts = []
+                for dept in Department.objects.all():
+                    emp_count = CustomUser.objects.filter(department=dept, deleted_at__isnull=True).count()
+                    dept_counts.append({'id': dept.id, 'name': dept.name, 'emp_count': emp_count})
+                dashboard['departments'] = dept_counts
+                # Hires this month (approx using date_joined)
+                hires_this_month = CustomUser.objects.filter(date_joined__date__gte=first_of_month).count()
+                dashboard['hires_this_month'] = hires_this_month
+                # Soft-deleted (attrition) last 30 days
+                deleted_last_30 = CustomUser.all_objects.filter(deleted_at__gte=last_30).count()
+                previous_period_baseline = total_users + deleted_last_30 if (total_users + deleted_last_30) else 1
+                attrition_rate = deleted_last_30 / previous_period_baseline
+                dashboard['attrition_last_30_days'] = {
+                    'count': deleted_last_30,
+                    'rate': round(attrition_rate, 4)
+                }
+                # Leave metrics
+                pending_leave = LeaveRequest.objects.filter(status='PENDING').count()
+                approved_leave_today = LeaveRequest.objects.filter(status='APPROVED', start_date__lte=today, end_date__gte=today).count()
+                dashboard['leave'] = {
+                    'pending_requests': pending_leave,
+                    'employees_on_approved_leave_today': approved_leave_today,
+                }
+                # Attendance today
+                attendance_today = Attendance.objects.filter(date=today)
+                dashboard['attendance_today'] = {
+                    'present': attendance_today.filter(status='Present').count(),
+                    'absent': attendance_today.filter(status='Absent').count(),
+                    'leave': attendance_today.filter(status='Leave').count(),
+                }
+                # Performance metrics
+                perf_qs = PerformanceReview.objects.all()
+                avg_score = perf_qs.aggregate(avg=Avg('score'))['avg'] or 0
+                reviews_this_month = perf_qs.filter(created_at__date__gte=first_of_month).count()
+                # Top performers (latest score per employee, naive: take max score)
+                top_performers = (
+                    perf_qs.values('employee__id', 'employee__first_name', 'employee__last_name')
+                    .annotate(max_score=Max('score'))
+                    .order_by('-max_score')[:5]
+                )
+                dashboard['performance'] = {
+                    'average_score': round(avg_score, 2),
+                    'reviews_this_month': reviews_this_month,
+                    'top_performers': list(top_performers),
+                }
+                # Age distribution buckets (if date_of_birth exists)
+                ages = []
+                for dob in CustomUser.objects.filter(date_of_birth__isnull=False).values_list('date_of_birth', flat=True):
+                    age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+                    ages.append(age)
+                buckets = {'<25':0,'25-34':0,'35-44':0,'45-54':0,'55+':0}
+                for a in ages:
+                    if a < 25: buckets['<25'] += 1
+                    elif a < 35: buckets['25-34'] += 1
+                    elif a < 45: buckets['35-44'] += 1
+                    elif a < 55: buckets['45-54'] += 1
+                    else: buckets['55+'] += 1
+                dashboard['age_distribution'] = buckets
             data['dashboard'] = dashboard
             return Response(data)
         except Exception as e:
