@@ -7,10 +7,13 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
     employee_details = serializers.SerializerMethodField()
     approvers = serializers.SerializerMethodField()
 
+    deleted_by = serializers.PrimaryKeyRelatedField(read_only=True)
+    deleted_at = serializers.DateTimeField(read_only=True)
+
     class Meta:
         model = LeaveRequest
         fields = '__all__'
-        extra_fields = ['approvers']
+        extra_fields = ['approvers', 'deleted_by', 'deleted_at']
 
     def get_employee_details(self, obj):
         return {

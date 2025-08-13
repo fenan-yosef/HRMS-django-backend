@@ -16,7 +16,10 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         # Employees only see their own leave requests
         if hasattr(user, 'role') and user.role == 'Employee':
             return LeaveRequest.objects.filter(employee=user)
-        # HR and others see all
+        # HR and CEO see all, including soft-deleted
+        if hasattr(user, 'role') and user.role in ['HR', 'CEO']:
+            return LeaveRequest.all_objects.all()
+        # Others see only active
         return LeaveRequest.objects.all()
     serializer_class = LeaveRequestSerializer
     permission_classes = [IsAuthenticated]
@@ -37,7 +40,10 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         try:
-            return super().destroy(request, *args, **kwargs)
+            instance = self.get_object()
+            instance.soft_delete(user=request.user)
+            serializer = self.get_serializer(instance)
+            return Response({"message": "Leave request soft deleted.", "leave_request": serializer.data})
         except Exception as e:
             logger.exception("Error deleting leave request")
             return Response({"error": "An error occurred while deleting the leave request."}, status=500)

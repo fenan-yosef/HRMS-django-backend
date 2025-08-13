@@ -16,12 +16,19 @@ class LeaveRequest(SoftDeleteModel):
     reason = models.TextField(blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
     applied_date = models.DateTimeField(auto_now_add=True)
+    deleted_by = models.ForeignKey('hr.CustomUser', null=True, blank=True, on_delete=models.SET_NULL, related_name='deleted_leave_requests')
 
     class Meta:
         ordering = ['-applied_date']  # Orders by applied_date descending
 
     def __str__(self):
         return f"{self.employee} - {self.start_date} to {self.end_date} ({self.status})"
+
+        def soft_delete(self, user=None):
+            from django.utils import timezone
+            self.deleted_at = timezone.now()
+            self.deleted_by = user
+            self.save(update_fields=['deleted_at', 'deleted_by'])
 
     def get_approvers(self):
         """
