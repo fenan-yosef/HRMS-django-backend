@@ -2,19 +2,19 @@ from rest_framework import permissions
 
 class IsCEO(permissions.BasePermission):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'CEO'
+        return request.user.is_authenticated and getattr(request.user, 'role', '').lower() == 'ceo'
 
 class IsManager(permissions.BasePermission):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role.lower() == 'manager'
+        return request.user.is_authenticated and getattr(request.user, 'role', '').lower() == 'manager'
 
 class IsHR(permissions.BasePermission):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'HR'
+        return request.user.is_authenticated and getattr(request.user, 'role', '').lower() == 'hr'
 
 class IsEmployee(permissions.BasePermission):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'Employee'
+        return request.user.is_authenticated and getattr(request.user, 'role', '').lower() == 'employee'
 
 class IsOwner(permissions.BasePermission):
     """
@@ -44,7 +44,7 @@ class IsManagerOfDepartment(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         return (
             request.user.is_authenticated and
-            request.user.role == 'Manager' and
+            getattr(request.user, 'role', '').lower() == 'manager' and
             hasattr(obj, 'department') and
             obj.department == request.user.department
         )
