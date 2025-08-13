@@ -181,10 +181,47 @@ class MeView(APIView):
                 dashboard['my_team_size'] = team_size
             # Manager dashboard metrics
             if user.role.lower() == 'manager':
-                from hr.models import CustomUser
-                # My Team Size: count employees in manager's department
-                team_size = CustomUser.objects.filter(department=user.department, role='employee').count() if user.department else 0
+                from hr.models import CustomUser, PerformanceReview, Attendance
+                from leave.models import LeaveRequest
+                from django.db.models import Avg
+                today = timezone.now().date()
+                # Team size: count employees in manager's department
+                team_size = CustomUser.objects.filter(
+                    department=user.department,
+                    role__iexact='employee'
+                ).count() if user.department else 0
                 dashboard['my_team_size'] = team_size
+                # Employees on leave today
+                on_leave = Attendance.objects.filter(
+                    employee__department=user.department,
+                    status='Leave', date=today
+                ).count() if user.department else 0
+                dashboard['employees_on_leave'] = on_leave
+                # Pending leave requests for team
+                pending = LeaveRequest.objects.filter(
+                    employee__department=user.department,
+                    status='PENDING'
+                ).count() if user.department else 0
+                dashboard['pending_leave_requests'] = pending
+                # New hires this month
+                first_of_month = today.replace(day=1)
+                new_hires = CustomUser.objects.filter(
+                    department=user.department,
+                    date_joined__gte=first_of_month
+                ).count() if user.department else 0
+                dashboard['new_hires_this_month'] = new_hires
+                # Team performance metrics
+                # Average performance score
+                avg_score = PerformanceReview.objects.filter(
+                    employee__department=user.department
+                ).aggregate(avg=Avg('score'))['avg'] or 0
+                dashboard['team_avg_performance_score'] = round(avg_score, 2)
+                # Reviews this month
+                reviews_month = PerformanceReview.objects.filter(
+                    employee__department=user.department,
+                    created_at__gte=first_of_month
+                ).count() if user.department else 0
+                dashboard['performance_reviews_this_month'] = reviews_month
             data['dashboard'] = dashboard
             return Response(data)
         except Exception as e:
