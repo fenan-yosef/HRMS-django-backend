@@ -22,3 +22,32 @@ class LeaveRequest(SoftDeleteModel):
 
     def __str__(self):
         return f"{self.employee} - {self.start_date} to {self.end_date} ({self.status})"
+
+    def get_approvers(self):
+        """
+        Returns queryset of users who can approve this leave request based on employee role.
+        """
+        from hr.models import CustomUser
+        role = (self.employee.role or '').lower()
+        if role == 'employee':
+            # Manager of department, any CEO, any HR
+            approvers = CustomUser.objects.filter(
+                models.Q(role__iexact='ceo') |
+                models.Q(role__iexact='hr') |
+                (models.Q(role__iexact='manager') & models.Q(department=self.employee.department))
+            )
+        elif role == 'manager':
+            # Any CEO or any HR
+            approvers = CustomUser.objects.filter(
+                models.Q(role__iexact='ceo') |
+                models.Q(role__iexact='hr')
+            )
+        elif role == 'hr':
+            # Any CEO
+            approvers = CustomUser.objects.filter(role__iexact='ceo')
+        elif role == 'ceo':
+            # Any HR
+            approvers = CustomUser.objects.filter(role__iexact='hr')
+        else:
+            approvers = CustomUser.objects.none()
+        return approvers
