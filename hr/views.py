@@ -16,12 +16,24 @@ from .serializers import CustomTokenObtainPairSerializer
 from django.contrib.auth import authenticate
 from django.http import JsonResponse
 import logging
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, action
 from .serializers import HighLevelUserSerializer
 
 logger = logging.getLogger(__name__)
 
 class UserViewSet(viewsets.ModelViewSet):
+    @action(detail=True, methods=['post'], url_path='demote', url_name='demote')
+    def demote_to_employee(self, request, pk=None):
+        user = self.get_object()
+        requester = request.user
+        # Only CEO or HR can demote
+        if str(getattr(requester, 'role', '')).lower() not in ['ceo', 'hr']:
+            return Response({'error': 'Only CEO or HR can demote managers.'}, status=403)
+        if str(user.role).lower() != 'manager':
+            return Response({'detail': 'User is not a manager.'}, status=400)
+        user.role = 'employee'
+        user.save(update_fields=['role'])
+        return Response({'detail': f'{user.email} demoted to employee.'})
     from rest_framework.decorators import action
 
     @action(detail=True, methods=['post'], url_path='promote', url_name='promote')

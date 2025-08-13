@@ -60,3 +60,4 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         else:
             serializer.save(employee=user)
     # Optionally, add logging to other methods as well (e.g., list, retrieve)
+ 
