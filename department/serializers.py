@@ -23,3 +23,8 @@ class DepartmentSerializer(serializers.ModelSerializer):
     def get_head_count(self, obj):
         # Count users linked to this department
         return obj.custom_users.count()
+
+    def validate_manager(self, value):
+        if value and str(value.role).lower() != 'manager':
+            raise serializers.ValidationError('Only users with the manager role can be assigned as department manager.')
+        return value

@@ -22,6 +22,20 @@ from .serializers import HighLevelUserSerializer
 logger = logging.getLogger(__name__)
 
 class UserViewSet(viewsets.ModelViewSet):
+    from rest_framework.decorators import action
+
+    @action(detail=True, methods=['post'], url_path='promote', url_name='promote')
+    def promote_to_manager(self, request, pk=None):
+        user = self.get_object()
+        requester = request.user
+        # Only CEO or HR can promote
+        if str(getattr(requester, 'role', '')).lower() not in ['ceo', 'hr']:
+            return Response({'error': 'Only CEO or HR can promote employees.'}, status=403)
+        if str(user.role).lower() == 'manager':
+            return Response({'detail': 'User is already a manager.'}, status=400)
+        user.role = 'manager'
+        user.save(update_fields=['role'])
+        return Response({'detail': f'{user.email} promoted to manager.'})
     queryset = CustomUser.objects.all()
     serializer_class = UserSerializer
 
