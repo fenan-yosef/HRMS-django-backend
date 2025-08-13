@@ -13,7 +13,13 @@ class ManagerSerializer(serializers.ModelSerializer):
 class DepartmentSerializer(serializers.ModelSerializer):
     """Serializer for Department model."""
     manager = ManagerSerializer(read_only=True)  # Use ManagerSerializer for the manager field
+    head_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Department
         fields = '__all__'
+        # head_count will be included automatically
+
+    def get_head_count(self, obj):
+        # Count users linked to this department
+        return obj.custom_users.count()
