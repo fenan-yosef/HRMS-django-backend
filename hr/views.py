@@ -1,7 +1,7 @@
 from rest_framework import viewsets, permissions, status
 from django.utils import timezone
 from django.db import models
-from .permissions import AnyOf, IsCEO, IsHR, IsManager
+from .permissions import AnyOf, IsCEO, IsHR, IsManager, IsManagerOfDepartment
 from rest_framework.response import Response
 import traceback
 from django.shortcuts import render
@@ -25,21 +25,69 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
 
     def get_queryset(self):
+        """
+        Filter users by role query param first, then restrict to manager's department if requester is a manager.
+        """
         queryset = CustomUser.objects.all()
+        # Apply role filter if provided
         role = self.request.query_params.get('role')
         if role:
             queryset = queryset.filter(role__iexact=role)
+        # Managers only see users in their own department
+        user = self.request.user
+        if getattr(user, 'role', '').lower() == 'manager':
+            queryset = queryset.filter(department=user.department)
         return queryset
 
     def get_permissions(self):
-        if self.request.method in ['POST', 'PUT', 'DELETE']:
+        user = self.request.user
+        # Allow managers to create employees
+        if self.request.method == 'POST':
+            return [AnyOf(IsCEO, IsHR, IsManager)]
+        # Update/delete: managers restricted to own department
+        if self.request.method in ['PUT', 'PATCH', 'DELETE']:
+            if user.is_authenticated and user.role and user.role.lower() == 'manager':
+                return [IsManagerOfDepartment()]
             return [AnyOf(IsCEO, IsHR)]
+        # Retrieve detail: managers restricted to own department
+        if self.request.method == 'GET' and self.action == 'retrieve' and user.is_authenticated and user.role and user.role.lower() == 'manager':
+            return [permissions.IsAuthenticated(), IsManagerOfDepartment()]
+        # List and other GET: any authenticated can list,
+        # but get_queryset already filters managers
         return [permissions.IsAuthenticated()]
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        data = request.data.copy()
+        # Managers cannot change department; enforce their own
+        if request.user.role and request.user.role.lower() == 'manager':
+            data.pop('department_id', None)
+        password_changed = 'password' in data
+        serializer = self.get_serializer(instance, data=data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        response_data = serializer.data
+        if password_changed:
+            response_data['message'] = 'Password changed successfully.'
+        return Response(response_data)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+    
+    def perform_create(self, serializer):
+        # Managers automatically set department
+        user = self.request.user
+        if user.role and user.role.lower() == 'manager':
+            serializer.save(department=user.department)
+        else:
+            serializer.save()
 
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all()
     serializer_class = DepartmentSerializer
-
+ 
     def get_permissions(self):
         if self.request.method in ['POST', 'PUT', 'DELETE']:
             return [AnyOf(IsCEO, IsHR)]

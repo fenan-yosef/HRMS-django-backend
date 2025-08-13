@@ -32,16 +32,25 @@ class RegisterView(generics.CreateAPIView):
             data['password'] = password
 
         try:
+            # Make role case-insensitive and default to 'employee'
+            role = data.get('role', 'employee')
+            if role:
+                role = role.lower()
             user = User.objects.create_user(
-                username=data['username'],
                 email=data['email'],
                 password=password,
-                role=data.get('role', 'Employee')
+                role=role,
+                first_name=data.get('first_name', ''),
+                last_name=data.get('last_name', ''),
+                phone_number=data.get('phone_number', ''),
+                job_title=data.get('job_title', ''),
+                date_of_birth=data.get('date_of_birth', None),
+                department=data.get('department', None)
             )
             # Send email with password
             send_mail(
                 subject="Welcome to HRMS - Your Account Details",
-                message=f"Hello {user.username},\n\nYour account has been created.\nEmail: {user.email}\nPassword: {password}\nPlease change your password after first login.",
+                message=f"Hello {user.first_name},\n\nYour account has been created.\nEmail: {user.email}\nPassword: {password}\nPlease change your password after first login.",
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[user.email],
                 fail_silently=False,
@@ -51,7 +60,6 @@ class RegisterView(generics.CreateAPIView):
                 'message': 'User registered successfully and email sent.',
                 'user': {
                     'id': user.id,
-                    'username': user.username,
                     'email': user.email,
                     'role': user.role
                 }

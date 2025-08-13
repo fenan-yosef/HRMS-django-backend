@@ -10,13 +10,6 @@ User = get_user_model()
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
-    username = serializers.CharField(
-        max_length=150,
-        validators=[
-            UniqueValidator(queryset=User.objects.all(), message="A user with that username already exists.")
-        ],
-        required=True,
-    )
     email = serializers.EmailField(
         max_length=254,
         required=True,
@@ -27,26 +20,37 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('username', 'email', 'password', 'role')
+        fields = ('email', 'password', 'role', 'first_name', 'last_name', 'phone_number', 'job_title', 'date_of_birth', 'department')
 
     def create(self, validated_data):
         user = User.objects.create_user(
-            username=validated_data['username'],
             email=validated_data.get('email'),
             password=validated_data['password'],
-            role=validated_data.get('role', 'Employee')
+            role=validated_data.get('role', 'employee'),
+            first_name=validated_data.get('first_name', ''),
+            last_name=validated_data.get('last_name', ''),
+            phone_number=validated_data.get('phone_number', ''),
+            job_title=validated_data.get('job_title', ''),
+            date_of_birth=validated_data.get('date_of_birth', None),
+            department=validated_data.get('department', None)
         )
         return user
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False)
+    # Write-only field for setting department by primary key
+    department_id = serializers.PrimaryKeyRelatedField(write_only=True, source='department', queryset=Department.objects.all(), required=False)
+    # Read-only nested representation of department
     department = DepartmentSerializer(read_only=True)
 
     class Meta:
         model = CustomUser
         fields = [
             'id', 'email', 'role', 'password', 'first_name', 'last_name',
-            'phone_number', 'is_active', 'job_title', 'date_of_birth', 'department'
+            'phone_number', 'is_active', 'job_title', 'date_of_birth',
+            # allow setting department via pk
+            'department_id',
+            'department'
         ]
 
     def create(self, validated_data):

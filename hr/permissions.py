@@ -6,7 +6,7 @@ class IsCEO(permissions.BasePermission):
 
 class IsManager(permissions.BasePermission):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'Manager'
+        return request.user.is_authenticated and request.user.role.lower() == 'manager'
 
 class IsHR(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -36,3 +36,15 @@ class AnyOf(permissions.BasePermission):
 
     def has_object_permission(self, request, view, obj):
         return any(getattr(perm, 'has_object_permission', lambda r, v, o: perm.has_permission(r, v))(request, view, obj) for perm in self.perms)
+ 
+class IsManagerOfDepartment(permissions.BasePermission):
+    """
+    Allows access if the user is a manager and the object's department matches user's department.
+    """
+    def has_object_permission(self, request, view, obj):
+        return (
+            request.user.is_authenticated and
+            request.user.role == 'Manager' and
+            hasattr(obj, 'department') and
+            obj.department == request.user.department
+        )
