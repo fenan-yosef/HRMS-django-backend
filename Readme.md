@@ -2,382 +2,237 @@
 # HRMS Django Backend API Documentation
 
 ## Overview
-This backend provides a RESTful API for managing users, departments, leave requests, performance reviews, and attendance. Authentication is via JWT. All endpoints require authentication unless noted.
+This backend exposes a REST API for users, departments, leave requests, performance reviews and attendance. Authentication is JWT-based (access + refresh tokens). All endpoints require authentication unless the route explicitly allows public access (register/login/password reset).
 
-## Setup
-1. Clone the repo and install dependencies
-2. Add your `.env` file (see example in repo)
-3. Run migrations: `python manage.py migrate`
-4. Start the server: `python manage.py runserver`
+## Quick setup
+1. Create a virtualenv and install requirements (see `requirements.txt`).
+2. Add environment secrets as needed.
+3. Run migrations: `python manage.py migrate`.
+4. Start dev server: `python manage.py runserver`.
+
+## Base prefixes (routes defined in this repo)
+- Main app router mounted at: `/api/`
+- Departments mounted at: `/api/departments/`
+- Leaves mounted at: `/api/leaves/`
+
+Note: several models exist for review cycles, competencies, rating scales and goals, but there are currently no registered API routes for those models (only `performance-reviews` is routed). If you need endpoints for those models, a viewset/router must be added.
 
 ## Authentication
-All requests require a JWT token in the `Authorization: Bearer <token>` header.
+By default use Authorization: Bearer <access_token>. The project exposes both session-like login and JWT token endpoints.
 
-### Register User
-**POST** `/api/auth/register/`
-Creates a new user. If no password is provided, a random password is generated and emailed to the user.
-**Payload:**
+### Register
+POST `/api/auth/register/`
+Creates a new user. If `password` is omitted a random password is generated and emailed.
+Payload (fields supported):
 ```json
 {
-  "username": "hr_manager",
-  "email": "hr_manager@example.com",
-  "password": "your_password", // optional
-  "role": "HR"
+  "email": "user@example.com",
+  "password": "optional_password",
+  "role": "employee",            // optional, case-insensitive
+  "first_name": "Alice",
+  "last_name": "Smith",
+  "phone_number": "+1-555-111-2222",
+  "job_title": "Engineer",
+  "date_of_birth": "1990-01-01",
+  "department": 2                 // department id (optional)
 }
 ```
-**Response:**
+Response (201):
 ```json
 {
   "message": "User registered successfully and email sent.",
-  "user": {
-    "id": 1,
-    "username": "hr_manager",
-    "email": "hr_manager@example.com",
-    "role": "HR"
-  }
+  "user": { "id": 10, "email": "user@example.com", "role": "employee" }
 }
 ```
 
-### Login & Token
-**POST** `/api/auth/token/`
-**Payload:**
+### Obtain JWT tokens
+POST `/api/auth/token/`
+Payload:
 ```json
 {
-  "email": "hr_manager@example.com",
+  "email": "user@example.com",
   "password": "your_password"
 }
 ```
-**Response:**
+Response (200):
 ```json
 {
   "access": "<access_token>",
-  "refresh": "<refresh_token>"
+  "refresh": "<refresh_token>",
+  "email": "user@example.com",
+  "role": "employee"
 }
+```
+Notes: The project uses a custom token serializer that adds `email` and `role` to the token response.
+
+POST `/api/auth/token/refresh/` — refresh access token
+Payload: { "refresh": "<refresh_token>" }
+Response: { "access": "<new_access_token>" }
+
+### Session-like login (optional)
+POST `/api/auth/login/`
+Payload:
+```json
+{
+  "identifier": "user@example.com",
+  "password": "your_password"
+}
+```
+Response (200):
+```json
+{ "message": "Login successful.", "email": "user@example.com", "role": "employee" }
 ```
 
-**POST** `/api/auth/token/refresh/`
-**Payload:**
+### Change password
+POST `/api/auth/change-password/`
+Payload:
 ```json
-{
-  "refresh": "<refresh_token>"
-}
-```
-**Response:**
-```json
-{
-  "access": "<new_access_token>"
-}
+{ "old_password": "old", "new_password": "new" }
 ```
 
-### Get Current User
-**GET** `/api/auth/me/`
-Returns the authenticated user's profile.
-**Response:**
+### Password reset
+POST `/api/auth/request-password-reset/` — start reset (provide `email`)
+POST `/api/auth/reset-password/` — complete reset (see implementation for fields)
+
+### Get current user + dashboard
+GET `/api/auth/me/`
+Response: serializes the authenticated user via `UserSerializer`. Typical fields returned:
 ```json
 {
-  "id": 1,
-  "username": "hr_manager",
-  "email": "hr_manager@example.com",
-  "role": "HR"
+  "id": 3,
+  "email": "employee@example.com",
+  "role": "employee",
+  "first_name": "John",
+  "last_name": "Doe",
+  "phone_number": "123-456-7890",
+  "is_active": true,
+  "job_title": "Engineer",
+  "date_of_birth": "1990-01-01",
+  "department": { "id": 2, "name": "Marketing", "code": "MKT001", "manager": { "id": 5, "first_name": "Mngr" } },
+  "dashboard": { /* role-specific metrics may be present */ }
 }
 ```
 
 ## Users
-**GET** `/api/users/` — List all users
-**POST** `/api/users/` — Create user (CEO/HR only)
-**GET/PUT/PATCH/DELETE** `/api/users/{id}/` — Retrieve, update, or delete user (CEO/HR only)
+Base path: `/api/users/` (registered by router)
+- GET `/api/users/` — list users (managers are filtered to their department by the viewset)
+- POST `/api/users/` — create user (allowed for CEO/HR/managers per permission logic)
+- GET/PUT/PATCH/DELETE `/api/users/{id}/` — detail/update/delete
 
-**Sample User Payload:**
+Payload when creating/updating a user (supported fields):
 ```json
 {
-  "username": "new_employee",
   "email": "employee@example.com",
-  "password": "new_password",
-  "role": "Employee"
+  "password": "optional",
+  "role": "employee",
+  "first_name": "John",
+  "last_name": "Doe",
+  "phone_number": "123",
+  "job_title": "Engineer",
+  "date_of_birth": "1990-01-01",
+  "department_id": 2        // to set department by id
 }
 ```
-
-**Sample User Response (Employee):**
+Response: returns the serialized user. Example:
 ```json
 {
   "id": 3,
-  "username": "new_employee",
   "email": "employee@example.com",
-  "role": "Employee",
+  "role": "employee",
   "first_name": "John",
   "last_name": "Doe",
-  "phone_number": "123-456-7890",
-  "is_active": true
+  "phone_number": "123",
+  "is_active": true,
+  "job_title": "Engineer",
+  "date_of_birth": "1990-01-01",
+  "department": { "id": 2, "name": "Marketing", "code": "MKT001" }
 }
 ```
 
-**Sample User Response (Non-Employee):**
-```json
-{
-  "id": 2,
-  "username": "hr_manager",
-  "email": "hr_manager@example.com",
-  "role": "HR",
-  "first_name": "Alice",
-  "last_name": "Smith",
-  "phone_number": "987-654-3210",
-  "is_active": true
-}
-```
+Additional user actions (via `users/{id}/promote/` and `users/{id}/demote/` POST actions) exist for role changes (CEO/HR only).
 
 ## Departments
-**GET** `/api/departments/` — List departments
-**POST** `/api/departments/` — Create department
-**GET/PUT/PATCH/DELETE** `/api/departments/{id}/` — Retrieve, update, or delete department
+Base path: `/api/departments/`
+- GET `/api/departments/` — list
+- POST `/api/departments/` — create (CEO/HR)
+- GET/PUT/PATCH/DELETE `/api/departments/{id}/` — detail/update/delete
 
-**Sample Department Payload:**
-```json
-{
-  "name": "Marketing",
-  "code": "MKT001",
-  "description": "Handles market research and campaigns",
-  "manager": 2
-}
-```
-**Sample Department Response:**
-```json
-{
-  "id": 1,
-  "name": "Marketing",
-  "code": "MKT001",
-  "description": "Handles market research and campaigns",
-  "manager": 2
-}
-```
-
-## Leave Requests
-**GET** `/api/leave-requests/` — List leave requests (CEO/HR/Manager see all, Employee sees own)
-**POST** `/api/leave-requests/` — Create leave request
-**GET/PUT/PATCH/DELETE** `/api/leave-requests/{id}/` — Retrieve, update, or delete leave request
-
-**Sample Leave Request Payload:**
-```json
-{
-  "start_date": "2025-07-10",
-  "end_date": "2025-07-15",
-  "reason": "Family emergency"
-}
-```
-**Sample Leave Request Response:**
+Department representation (serializer fields):
 ```json
 {
   "id": 2,
-  "employee": 3,
-  "start_date": "2025-07-10",
-  "end_date": "2025-07-15",
-  "status": "Pending",
-  "applied_date": "2025-06-25T08:00:00Z"
+  "name": "Marketing",
+  "code": "MKT001",
+  "description": "...",
+  "manager": { "id": 5, "first_name": "Mngr", "last_name": "Name", "email": "mgr@example.com" },
+  "head_count": 12
 }
 ```
 
-## Performance Reviews
-**GET** `/api/performance-reviews/` — List reviews (CEO/HR/Manager see all, Employee sees own)
-**POST** `/api/performance-reviews/` — Create review (CEO/HR/Manager only)
-**GET/PUT/PATCH/DELETE** `/api/performance-reviews/{id}/` — Retrieve, update, or delete review
+## Leave requests
+Base path: `/api/leaves/leave-requests/`
+- GET `/api/leaves/leave-requests/` — list (employees see their own; HR/CEO see all)
+- POST `/api/leaves/leave-requests/` — create
+- GET/PUT/PATCH/DELETE `/api/leaves/leave-requests/{id}/` — detail/update/soft-delete
 
-The performance management feature is now expanded. New models and endpoints are available:
-
-- Review cycles: `/api/review-cycles/`
-- Rating scales: `/api/rating-scales/`
-- Competencies: `/api/competencies/`
-- Performance reviews: `/api/performance-reviews/`
-- Review scores (per-competency): `/api/review-scores/` (or nested under a review)
-- Review snapshots (immutable copy after finalization): `/api/review-snapshots/`
-
-Access rules: CEO/HR/Manager have broad access; employees may create/view their own self-assessments and view finalized reviews. Detailed permission enforcement is implemented server-side.
-
-Create a review (example): POST `/api/performance-reviews/`
-Payload (minimal):
+Model/serializer fields (response):
 ```json
 {
+  "id": 7,
   "employee": 3,
-  "reviewer": 2,
-  "review_cycle": 1,
-  "review_type": "annual",
-  "self_assessment": "Summary of achievements...",
-  "comments": "Manager notes (optional)"
+  "employee_details": { "first_name": "John", "last_name": "Doe", "email": "employee@example.com" },
+  "start_date": "2025-07-10",
+  "end_date": "2025-07-15",
+  "reason": "Family emergency",
+  "status": "PENDING",
+  "applied_date": "2025-06-25T08:00:00Z",
+  "approvers": [ { "id": 5, "first_name": "Mngr", "role": "manager" } ],
+  "deleted_by": null,
+  "deleted_at": null
 }
 ```
+When creating as a normal employee, POST body should include `start_date`, `end_date`, and optional `reason`. HR users may set an explicit `employee` id in the payload.
 
-Response:
+## Performance reviews
+Base path: `/api/performance-reviews/`
+- GET `/api/performance-reviews/` — list (CEO/HR/Manager see all; employees see their own)
+- POST `/api/performance-reviews/` — create (permissions enforced in viewset)
+- GET/PUT/PATCH/DELETE `/api/performance-reviews/{id}/` — detail/update/delete
+
+PerformanceReview fields (example response):
 ```json
 {
   "id": 12,
   "employee": 3,
   "reviewer": 2,
-  "review_cycle": 1,
+  "review_cycle": null,
   "review_type": "annual",
   "status": "draft",
   "overall_score": null,
-  "comments": "Manager notes (optional)",
-  "self_assessment": "Summary of achievements...",
+  "comments": "Manager notes",
+  "self_assessment": "Summary...",
   "finalized_at": null,
   "created_at": "2025-08-14T10:00:00Z",
   "updated_at": "2025-08-14T10:00:00Z"
 }
 ```
 
-Add per-competency scores (option A: create via `/api/review-scores/`):
-POST `/api/review-scores/`
-Payload:
-```json
-{
-  "review": 12,
-  "competency": 2,
-  "score": 4.5,
-  "comment": "Strong communication"
-}
-```
-
-Response:
-```json
-{
-  "id": 7,
-  "review": 12,
-  "competency": 2,
-  "score": 4.5,
-  "comment": "Strong communication"
-}
-```
-
-Or (option B) if your client supports it, create the review and scores in two requests: create review, then bulk-create scores. When a review is finalized (via POST to `/api/performance-reviews/{id}/finalize/`), the system creates an immutable `ReviewSnapshot` that stores review details and scores.
-
-ReviewCycle endpoints
-- **GET** `/api/review-cycles/` — list review cycles
-- **POST** `/api/review-cycles/` — create a cycle (HR/Admin)
-
-Sample ReviewCycle payload/response:
-```json
-POST /api/review-cycles/
-{
-  "name": "2025 Annual",
-  "start_date": "2025-01-01",
-  "end_date": "2025-12-31",
-  "is_active": true
-}
-
-Response:
-{
-  "id": 1,
-  "name": "2025 Annual",
-  "start_date": "2025-01-01",
-  "end_date": "2025-12-31",
-  "is_active": true
-}
-```
-
-Competencies & Rating Scales
-- **GET/POST** `/api/competencies/` — CRUD competencies
-- **GET/POST** `/api/rating-scales/` — CRUD rating scales
-
-Sample Competency payload:
-```json
-{
-  "name": "Communication",
-  "description": "Clarity, conciseness and effective feedback",
-  "rating_scale": 1
-}
-```
-
-Review snapshots
-- When reviews are finalized they are snapshotted to `/api/review-snapshots/` and become immutable for audit and reporting.
-
--------------------------
-
-## Goals / OKRs
-
-New endpoints to manage goals and key-results (OKR style):
-
-- **GET/POST** `/api/goals/` — list/create goals
-- **GET/PUT/PATCH/DELETE** `/api/goals/{id}/` — manage a single goal
-- **GET/POST** `/api/goals/{id}/key-results/` — add/list key-results
-- **POST** `/api/goals/{id}/progress/` — post progress updates
-- **GET/POST** `/api/goals/{id}/participants/` — assign contributors/watchers
-
-Create a goal (POST `/api/goals/`):
-```json
-{
-  "title": "Increase Quarterly Revenue",
-  "description": "Focus on upsell and expansion",
-  "owner": 3,
-  "creator": 2,
-  "department": 1,
-  "start_date": "2025-07-01",
-  "target_date": "2025-09-30",
-  "weight": 1.5,
-  "visibility": "team"
-}
-```
-
-Response:
-```json
-{
-  "id": 5,
-  "title": "Increase Quarterly Revenue",
-  "owner": 3,
-  "status": "open",
-  "target_date": "2025-09-30",
-  "created_at": "2025-08-14T10:05:00Z"
-}
-```
-
-Add a Key Result (POST `/api/goals/{id}/key-results/`):
-```json
-{
-  "goal": 5,
-  "description": "Increase ARPU by 10%",
-  "metric_type": "percent",
-  "baseline": 100.0,
-  "target": 110.0,
-  "current_value": 102.0,
-  "unit": "USD"
-}
-```
-
-Post a progress update (POST `/api/goals/{id}/progress/`):
-```json
-{
-  "goal": 5,
-  "updated_by": 3,
-  "value": 105.0,
-  "note": "Closed several upsell deals"
-}
-```
-
-Goal participants (POST `/api/goals/{id}/participants/`):
-```json
-{
-  "goal": 5,
-  "user": 4,
-  "role": "contributor"
-}
-```
-
-Snapshots: goals can be snapshotted (stored in `/api/goal-snapshots/`) for review-time archival.
-
--------------------------
+Note: Although models exist for review cycles, rating scales, competencies, review scores and snapshots, this codebase currently only registers the `performance-reviews` viewset in the router — there are no public routes for review-cycles/competencies/rating-scales/review-scores/review-snapshots unless you add viewsets/routers for them.
 
 ## Attendance
-**GET** `/api/attendances/` — List attendance records (CEO/HR see all, Manager/Employee see own)
-**POST** `/api/attendances/` — Create attendance (CEO/HR only)
-**GET/PUT/PATCH/DELETE** `/api/attendances/{id}/` — Retrieve, update, or delete attendance (CEO/HR only)
+Base path: `/api/attendance/`
+- GET `/api/attendance/` — list (CEO/HR get all; managers limited to department; employees get self)
+- POST `/api/attendance/` — create (direct CRUD restricted to CEO/HR)
+- GET/PUT/PATCH/DELETE `/api/attendance/{id}/` — detail/update/delete (CRUD restricted)
 
-**Sample Attendance Payload:**
-```json
-{
-  "employee": 3,
-  "date": "2025-07-04",
-  "status": "Present",
-  "check_in_time": "09:00:00",
-  "check_out_time": "17:00:00"
-}
-```
-**Sample Attendance Response:**
+Custom actions:
+- POST `/api/attendance/check-in/` — employee check-in (records check_in_time)
+- POST `/api/attendance/check-out/` — employee check-out (records check_out_time and computes duration)
+- GET `/api/attendance/today/` — fetch today's attendance for the current user
+- GET `/api/attendance/monthly-summary/?month=MM&year=YYYY` — monthly summary + stats
+- POST `/api/attendance/reset-today/` — admin (CEO/HR) action to reset a user's today attendance. Payload: { "user_id": <id> }
+
+Attendance representation (example):
 ```json
 {
   "id": 2,
@@ -386,17 +241,15 @@ Snapshots: goals can be snapshotted (stored in `/api/goal-snapshots/`) for revie
   "status": "Present",
   "check_in_time": "09:00:00",
   "check_out_time": "17:00:00",
+  "work_duration": null,        // duration field stored on model (read-only in serializer)
+  "total_hours": 8.0,
   "created_at": "2025-07-04T17:07:00Z"
 }
 ```
 
-## Permissions
-- CEO, HR, Manager, Employee roles are enforced for sensitive actions (see backend code for details)
-- Most write actions (create/update/delete) require CEO/HR/Manager
-- Employees can only view or update their own records
+## Other notes & permissions
+- Role-based permissions (CEO/HR/Manager/Employee) are enforced in viewsets. See `hr/permissions.py` for details.
+- Soft-delete is used for several models (deleted_at and deleted_by fields present).
+- If you want endpoints for review cycles, rating scales, competencies, review scores or the goals/OKR models, add viewsets and register them with the router (they are present as models but not routed).
 
-## Notes
-- All endpoints require JWT authentication unless noted
-- Registration sends password by email if not provided
-- All responses are JSON
-- For more details, see the backend code or ask the backend team
+For implementation details, check the app code under `hr/`, `department/` and `leave/`.
