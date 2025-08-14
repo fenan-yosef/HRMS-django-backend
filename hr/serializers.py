@@ -1,6 +1,7 @@
 from rest_framework import serializers
-from .models import CustomUser, Department, PerformanceReview, Attendance
+from .models import CustomUser, PerformanceReview, Attendance
 from department.serializers import DepartmentSerializer
+from department.models import Department
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer

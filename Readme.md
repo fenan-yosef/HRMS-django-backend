@@ -180,26 +180,187 @@ Returns the authenticated user's profile.
 **POST** `/api/performance-reviews/` — Create review (CEO/HR/Manager only)
 **GET/PUT/PATCH/DELETE** `/api/performance-reviews/{id}/` — Retrieve, update, or delete review
 
-**Sample Review Payload:**
+The performance management feature is now expanded. New models and endpoints are available:
+
+- Review cycles: `/api/review-cycles/`
+- Rating scales: `/api/rating-scales/`
+- Competencies: `/api/competencies/`
+- Performance reviews: `/api/performance-reviews/`
+- Review scores (per-competency): `/api/review-scores/` (or nested under a review)
+- Review snapshots (immutable copy after finalization): `/api/review-snapshots/`
+
+Access rules: CEO/HR/Manager have broad access; employees may create/view their own self-assessments and view finalized reviews. Detailed permission enforcement is implemented server-side.
+
+Create a review (example): POST `/api/performance-reviews/`
+Payload (minimal):
 ```json
 {
   "employee": 3,
   "reviewer": 2,
-  "score": 90,
-  "comments": "Excellent work!"
+  "review_cycle": 1,
+  "review_type": "annual",
+  "self_assessment": "Summary of achievements...",
+  "comments": "Manager notes (optional)"
 }
 ```
-**Sample Review Response:**
+
+Response:
 ```json
 {
-  "id": 2,
+  "id": 12,
   "employee": 3,
   "reviewer": 2,
-  "score": 90,
-  "comments": "Excellent work!",
-  "created_at": "2025-06-28T14:45:00Z"
+  "review_cycle": 1,
+  "review_type": "annual",
+  "status": "draft",
+  "overall_score": null,
+  "comments": "Manager notes (optional)",
+  "self_assessment": "Summary of achievements...",
+  "finalized_at": null,
+  "created_at": "2025-08-14T10:00:00Z",
+  "updated_at": "2025-08-14T10:00:00Z"
 }
 ```
+
+Add per-competency scores (option A: create via `/api/review-scores/`):
+POST `/api/review-scores/`
+Payload:
+```json
+{
+  "review": 12,
+  "competency": 2,
+  "score": 4.5,
+  "comment": "Strong communication"
+}
+```
+
+Response:
+```json
+{
+  "id": 7,
+  "review": 12,
+  "competency": 2,
+  "score": 4.5,
+  "comment": "Strong communication"
+}
+```
+
+Or (option B) if your client supports it, create the review and scores in two requests: create review, then bulk-create scores. When a review is finalized (via POST to `/api/performance-reviews/{id}/finalize/`), the system creates an immutable `ReviewSnapshot` that stores review details and scores.
+
+ReviewCycle endpoints
+- **GET** `/api/review-cycles/` — list review cycles
+- **POST** `/api/review-cycles/` — create a cycle (HR/Admin)
+
+Sample ReviewCycle payload/response:
+```json
+POST /api/review-cycles/
+{
+  "name": "2025 Annual",
+  "start_date": "2025-01-01",
+  "end_date": "2025-12-31",
+  "is_active": true
+}
+
+Response:
+{
+  "id": 1,
+  "name": "2025 Annual",
+  "start_date": "2025-01-01",
+  "end_date": "2025-12-31",
+  "is_active": true
+}
+```
+
+Competencies & Rating Scales
+- **GET/POST** `/api/competencies/` — CRUD competencies
+- **GET/POST** `/api/rating-scales/` — CRUD rating scales
+
+Sample Competency payload:
+```json
+{
+  "name": "Communication",
+  "description": "Clarity, conciseness and effective feedback",
+  "rating_scale": 1
+}
+```
+
+Review snapshots
+- When reviews are finalized they are snapshotted to `/api/review-snapshots/` and become immutable for audit and reporting.
+
+-------------------------
+
+## Goals / OKRs
+
+New endpoints to manage goals and key-results (OKR style):
+
+- **GET/POST** `/api/goals/` — list/create goals
+- **GET/PUT/PATCH/DELETE** `/api/goals/{id}/` — manage a single goal
+- **GET/POST** `/api/goals/{id}/key-results/` — add/list key-results
+- **POST** `/api/goals/{id}/progress/` — post progress updates
+- **GET/POST** `/api/goals/{id}/participants/` — assign contributors/watchers
+
+Create a goal (POST `/api/goals/`):
+```json
+{
+  "title": "Increase Quarterly Revenue",
+  "description": "Focus on upsell and expansion",
+  "owner": 3,
+  "creator": 2,
+  "department": 1,
+  "start_date": "2025-07-01",
+  "target_date": "2025-09-30",
+  "weight": 1.5,
+  "visibility": "team"
+}
+```
+
+Response:
+```json
+{
+  "id": 5,
+  "title": "Increase Quarterly Revenue",
+  "owner": 3,
+  "status": "open",
+  "target_date": "2025-09-30",
+  "created_at": "2025-08-14T10:05:00Z"
+}
+```
+
+Add a Key Result (POST `/api/goals/{id}/key-results/`):
+```json
+{
+  "goal": 5,
+  "description": "Increase ARPU by 10%",
+  "metric_type": "percent",
+  "baseline": 100.0,
+  "target": 110.0,
+  "current_value": 102.0,
+  "unit": "USD"
+}
+```
+
+Post a progress update (POST `/api/goals/{id}/progress/`):
+```json
+{
+  "goal": 5,
+  "updated_by": 3,
+  "value": 105.0,
+  "note": "Closed several upsell deals"
+}
+```
+
+Goal participants (POST `/api/goals/{id}/participants/`):
+```json
+{
+  "goal": 5,
+  "user": 4,
+  "role": "contributor"
+}
+```
+
+Snapshots: goals can be snapshotted (stored in `/api/goal-snapshots/`) for review-time archival.
+
+-------------------------
 
 ## Attendance
 **GET** `/api/attendances/` — List attendance records (CEO/HR see all, Manager/Employee see own)
