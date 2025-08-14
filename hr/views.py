@@ -204,7 +204,10 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         if not att.check_in_time:
             return Response({'detail': 'Cannot check-out without check-in.'}, status=400)
         if att.check_out_time:
-            return Response({'detail': 'Already checked out.', 'check_out_time': att.check_out_time}, status=400)
+            total_hours = None
+            if att.work_duration:
+                total_hours = round(att.work_duration.total_seconds() / 3600, 2)
+            return Response({'detail': 'Already checked out.', 'check_out_time': att.check_out_time, 'total_hours': total_hours}, status=400)
         att.check_out_time = timezone.localtime().time()
         att.save(update_fields=['check_out_time'])
         att.finalize_duration()
