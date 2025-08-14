@@ -208,7 +208,10 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         att.check_out_time = timezone.localtime().time()
         att.save(update_fields=['check_out_time'])
         att.finalize_duration()
-        return Response({'detail': 'Check-out recorded', 'time': att.check_out_time, 'total_hours': getattr(att, 'work_duration', None)})
+        total_hours = None
+        if att.work_duration:
+            total_hours = round(att.work_duration.total_seconds() / 3600, 2)
+        return Response({'detail': 'Check-out recorded', 'time': att.check_out_time, 'total_hours': total_hours})
 
     @action(detail=False, methods=['get'], url_path='today')
     def today(self, request):
