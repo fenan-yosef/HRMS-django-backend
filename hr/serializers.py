@@ -68,9 +68,17 @@ class PerformanceReviewSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class AttendanceSerializer(serializers.ModelSerializer):
+    total_hours = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = Attendance
         fields = '__all__'
+        read_only_fields = ['work_duration']
+
+    def get_total_hours(self, obj):
+        if obj.work_duration:
+            return round(obj.work_duration.total_seconds() / 3600, 2)
+        return None
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod

@@ -61,6 +61,7 @@ class CustomUser(AbstractUser, SoftDeleteModel):
         ('manager', 'Manager'),
         ('employee', 'Employee'),
         ('hr', 'HR'),
+        ('ceo', 'CEO'),  # Added CEO role to align with permission logic elsewhere
     ]
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee')
 
@@ -115,10 +116,30 @@ class Attendance(SoftDeleteModel):
     )
     check_in_time = models.TimeField(null=True, blank=True)
     check_out_time = models.TimeField(null=True, blank=True)
+    # Calculated duration (check_out - check_in), stored for reporting efficiency
+    work_duration = models.DurationField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.employee.first_name} {self.employee.last_name} on {self.date}: {self.status}"
+
+    def finalize_duration(self):
+        """Compute and persist work duration if both times exist and duration not yet set."""
+        if self.check_in_time and self.check_out_time:
+            if not self.work_duration:
+                # Combine with date to compute timedelta
+                dt_in = timezone.datetime.combine(self.date, self.check_in_time, tzinfo=timezone.get_current_timezone())
+                dt_out = timezone.datetime.combine(self.date, self.check_out_time, tzinfo=timezone.get_current_timezone())
+                if dt_out < dt_in:
+                    # Handle (rare) overnight shift: assume checkout next day
+                    dt_out = dt_out + timezone.timedelta(days=1)
+                self.work_duration = dt_out - dt_in
+                self.save(update_fields=['work_duration'])
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['employee', 'date'], name='uniq_attendance_employee_date')
+        ]
 
 # Password reset OTP model
 class PasswordResetOTP(models.Model):

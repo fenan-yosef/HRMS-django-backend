@@ -131,7 +131,7 @@ class PerformanceReviewViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.role in ['CEO', 'HR', 'Manager']:
+        if getattr(user, 'role', '').lower() in ['ceo', 'hr', 'manager']:
             return PerformanceReview.objects.all()
         return PerformanceReview.objects.filter(employee=user)
 
@@ -139,8 +139,6 @@ class PerformanceReviewViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [AnyOf(IsCEO, IsHR, IsManager)]
         return [permissions.IsAuthenticated()]
-    queryset = Attendance.objects.all()
-    serializer_class = AttendanceSerializer
 
     def get_queryset(self):
         user = self.request.user
@@ -158,6 +156,124 @@ class PerformanceReviewViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [AnyOf(IsCEO, IsHR)]
         return [permissions.IsAuthenticated()]
+
+class AttendanceViewSet(viewsets.ModelViewSet):
+    queryset = Attendance.objects.all().select_related('employee')
+    serializer_class = AttendanceSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        role = getattr(user, 'role', '').lower()
+        qs = Attendance.objects.all().select_related('employee')
+        if role in ['ceo', 'hr']:
+            return qs
+        if role == 'manager':
+            # Manager sees own + team (same department, employees only)
+            if user.department_id:
+                return qs.filter(models.Q(employee=user) | models.Q(employee__department_id=user.department_id))
+            return qs.filter(employee=user)
+        # Employee only self
+        return qs.filter(employee=user)
+
+    def get_permissions(self):
+        if self.action in ['destroy', 'update', 'partial_update', 'create']:
+            # Direct CRUD only for HR/CEO (normal users use custom actions)
+            return [AnyOf(IsCEO, IsHR)]
+        return [permissions.IsAuthenticated()]
+
+    @action(detail=False, methods=['post'], url_path='check-in')
+    def check_in(self, request):
+        user = request.user
+        today = timezone.localdate()
+        att, created = Attendance.objects.get_or_create(employee=user, date=today, defaults={'status': 'Present'})
+        if att.check_in_time:
+            return Response({'detail': 'Already checked in.', 'check_in_time': att.check_in_time}, status=400)
+        att.check_in_time = timezone.localtime().time()
+        att.status = 'Present'
+        att.save(update_fields=['check_in_time', 'status'])
+        return Response({'detail': 'Check-in recorded', 'time': att.check_in_time})
+
+    @action(detail=False, methods=['post'], url_path='check-out')
+    def check_out(self, request):
+        user = request.user
+        today = timezone.localdate()
+        try:
+            att = Attendance.objects.get(employee=user, date=today)
+        except Attendance.DoesNotExist:
+            return Response({'detail': 'No check-in found for today.'}, status=400)
+        if not att.check_in_time:
+            return Response({'detail': 'Cannot check-out without check-in.'}, status=400)
+        if att.check_out_time:
+            return Response({'detail': 'Already checked out.', 'check_out_time': att.check_out_time}, status=400)
+        att.check_out_time = timezone.localtime().time()
+        att.save(update_fields=['check_out_time'])
+        att.finalize_duration()
+        return Response({'detail': 'Check-out recorded', 'time': att.check_out_time, 'total_hours': getattr(att, 'work_duration', None)})
+
+    @action(detail=False, methods=['get'], url_path='today')
+    def today(self, request):
+        user = request.user
+        today = timezone.localdate()
+        att = Attendance.objects.filter(employee=user, date=today).first()
+        data = AttendanceSerializer(att).data if att else None
+        return Response({'today': data})
+
+    @action(detail=False, methods=['get'], url_path='monthly-summary')
+    def monthly_summary(self, request):
+        user = request.user
+        role = getattr(user, 'role', '').lower()
+        month = int(request.query_params.get('month', timezone.localdate().month))
+        year = int(request.query_params.get('year', timezone.localdate().year))
+        start = timezone.datetime(year, month, 1, tzinfo=timezone.get_current_timezone())
+        # Next month start for range end
+        if month == 12:
+            end = timezone.datetime(year + 1, 1, 1, tzinfo=timezone.get_current_timezone())
+        else:
+            end = timezone.datetime(year, month + 1, 1, tzinfo=timezone.get_current_timezone())
+        qs = Attendance.objects.filter(date__gte=start.date(), date__lt=end.date())
+        if role in ['ceo', 'hr']:
+            pass
+        elif role == 'manager':
+            if user.department_id:
+                qs = qs.filter(models.Q(employee=user) | models.Q(employee__department_id=user.department_id))
+            else:
+                qs = qs.filter(employee=user)
+        else:
+            qs = qs.filter(employee=user)
+        total_days = qs.count()
+        present = qs.filter(status='Present').count()
+        leave = qs.filter(status='Leave').count()
+        absent = qs.filter(status='Absent').count()
+        total_hours = qs.aggregate(sum=models.Sum('work_duration'))['sum'] or timezone.timedelta(0)
+        return Response({
+            'month': month,
+            'year': year,
+            'records': AttendanceSerializer(qs, many=True).data,
+            'stats': {
+                'total_days_recorded': total_days,
+                'present': present,
+                'leave': leave,
+                'absent': absent,
+                'total_hours': round(total_hours.total_seconds() / 3600, 2) if total_hours else 0,
+            }
+        })
+
+    @action(detail=False, methods=['post'], url_path='reset-today', permission_classes=[AnyOf(IsCEO, IsHR)])
+    def reset_today(self, request):
+        """Admin ability to clear today attendance for a user (for corrections)."""
+        user_id = request.data.get('user_id')
+        if not user_id:
+            return Response({'detail': 'user_id required'}, status=400)
+        today = timezone.localdate()
+        att = Attendance.objects.filter(employee_id=user_id, date=today).first()
+        if not att:
+            return Response({'detail': 'No record to reset'}, status=404)
+        att.check_in_time = None
+        att.check_out_time = None
+        att.work_duration = None
+        att.status = 'Absent'
+        att.save(update_fields=['check_in_time', 'check_out_time', 'work_duration', 'status'])
+        return Response({'detail': 'Attendance reset to Absent.'})
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
