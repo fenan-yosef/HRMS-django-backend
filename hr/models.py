@@ -3,25 +3,10 @@ from django.utils import timezone
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
+from core.models import SoftDeleteModel
 
 
-class SoftDeleteManager(models.Manager):
-    def get_queryset(self):
-        return super().get_queryset().filter(deleted_at__isnull=True)
-
-
-class SoftDeleteModel(models.Model):
-    deleted_at = models.DateTimeField(null=True, blank=True)
-
-    objects = SoftDeleteManager()
-    all_objects = models.Manager()  # includes soft-deleted
-
-    class Meta:
-        abstract = True
-
-    def delete(self, using=None, keep_parents=False):
-        self.deleted_at = timezone.now()
-        self.save(update_fields=["deleted_at"])
+## SoftDeleteModel now lives in core.models
 
 
 class CustomUserManager(BaseUserManager):
@@ -56,14 +41,14 @@ class CustomUser(AbstractUser, SoftDeleteModel):
 
     objects = CustomUserManager()
 
-    ROLE_CHOICES = [
-        ("admin", "Admin"),
-        ("manager", "Manager"),
-        ("employee", "Employee"),
-        ("hr", "HR"),
-        ("ceo", "CEO"),
-    ]
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="employee")
+    class Role(models.TextChoices):
+        ADMIN = "admin", "Admin"
+        MANAGER = "manager", "Manager"
+        EMPLOYEE = "employee", "Employee"
+        HR = "hr", "HR"
+        CEO = "ceo", "CEO"
+
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.EMPLOYEE)
 
     job_title = models.CharField(max_length=100, blank=True, null=True)
     phone_number = models.CharField(max_length=20, blank=True, null=True)
@@ -153,7 +138,7 @@ class PerformanceReview(SoftDeleteModel):
         self.finalized_at = timezone.now()
         self.save(update_fields=["status", "finalized_at"])
         # create snapshot
-        ReviewSnapshot.objects.create_from_review(self, created_by=by_user)
+        ReviewSnapshot.create_from_review(self, created_by=by_user)
 
 
 class ReviewScore(models.Model):

@@ -131,30 +131,14 @@ class PerformanceReviewViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if getattr(user, 'role', '').lower() in ['ceo', 'hr', 'manager']:
-            return PerformanceReview.objects.all()
-        return PerformanceReview.objects.filter(employee=user)
+        role = str(getattr(user, 'role', '')).lower()
+        if role in ['ceo', 'hr', 'manager']:
+            return PerformanceReview.objects.all().select_related('employee', 'reviewer', 'review_cycle').prefetch_related('scores__competency')
+        return PerformanceReview.objects.filter(employee=user).select_related('employee', 'reviewer', 'review_cycle').prefetch_related('scores__competency')
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [AnyOf(IsCEO, IsHR, IsManager)]
-        return [permissions.IsAuthenticated()]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.role in ['CEO', 'HR']:
-            return Attendance.objects.all()
-        elif user.role == 'Manager':
-            # Assuming a manager can see attendance for users in their department
-            # This requires a link from user to department, which is not explicit.
-            # For now, managers see their own, just like employees.
-            # A more complex implementation would be needed for team visibility.
-            return Attendance.objects.filter(employee=user)
-        return Attendance.objects.filter(employee=user)
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [AnyOf(IsCEO, IsHR)]
         return [permissions.IsAuthenticated()]
 
 class AttendanceViewSet(viewsets.ModelViewSet):
@@ -305,153 +289,9 @@ class MeView(APIView):
     def get(self, request):
         try:
             user = request.user
+            from .services.dashboard import build_dashboard
             data = UserSerializer(user).data
-            dashboard = {}
-            # Employee dashboard metrics
-            if user.role.lower() == 'employee':
-                from leave.models import LeaveRequest
-                from hr.models import PerformanceReview, CustomUser
-                # My Leave Days Used
-                approved_leaves = LeaveRequest.objects.filter(employee=user, status='APPROVED')
-                total_days = sum((leave.end_date - leave.start_date).days + 1 for leave in approved_leaves)
-                dashboard['my_leave_days_used'] = total_days
-                # My Pending Requests
-                pending_requests = LeaveRequest.objects.filter(employee=user, status='PENDING').count()
-                dashboard['my_pending_requests'] = pending_requests
-                # Days Until Next Review
-                next_review = PerformanceReview.objects.filter(employee=user, created_at__gt=timezone.now()).order_by('created_at').first()
-                if next_review:
-                    days_until_review = (next_review.created_at.date() - timezone.now().date()).days
-                else:
-                    days_until_review = None
-                dashboard['days_until_next_review'] = days_until_review
-                # My Team Size (employees in same department)
-                team_size = CustomUser.objects.filter(department=user.department, role='employee').count() if user.department else 0
-                dashboard['my_team_size'] = team_size
-            # Manager dashboard metrics
-            if user.role.lower() == 'manager':
-                from hr.models import CustomUser, PerformanceReview, Attendance
-                from leave.models import LeaveRequest
-                from django.db.models import Avg
-                today = timezone.now().date()
-                # Team size: count employees in manager's department
-                team_size = CustomUser.objects.filter(
-                    department=user.department,
-                    role__iexact='employee'
-                ).count() if user.department else 0
-                dashboard['my_team_size'] = team_size
-                # Employees on leave today
-                on_leave = Attendance.objects.filter(
-                    employee__department=user.department,
-                    status='Leave', date=today
-                ).count() if user.department else 0
-                dashboard['employees_on_leave'] = on_leave
-                # Pending leave requests for team
-                pending = LeaveRequest.objects.filter(
-                    employee__department=user.department,
-                    status='PENDING'
-                ).count() if user.department else 0
-                dashboard['pending_leave_requests'] = pending
-                # New hires this month
-                first_of_month = today.replace(day=1)
-                new_hires = CustomUser.objects.filter(
-                    department=user.department,
-                    date_joined__gte=first_of_month
-                ).count() if user.department else 0
-                dashboard['new_hires_this_month'] = new_hires
-                # Team performance metrics
-                # Average performance score
-                avg_score = PerformanceReview.objects.filter(
-                    employee__department=user.department
-                ).aggregate(avg=Avg('score'))['avg'] or 0
-                dashboard['team_avg_performance_score'] = round(avg_score, 2)
-                # Reviews this month
-                reviews_month = PerformanceReview.objects.filter(
-                    employee__department=user.department,
-                    created_at__gte=first_of_month
-                ).count() if user.department else 0
-                dashboard['performance_reviews_this_month'] = reviews_month
-            # CEO dashboard metrics
-            if user.role.lower() == 'ceo':
-                from hr.models import CustomUser, PerformanceReview, Attendance
-                from leave.models import LeaveRequest
-                from django.db.models import Count, Avg, Max
-                from datetime import timedelta
-                today = timezone.now().date()
-                now = timezone.now()
-                first_of_month = today.replace(day=1)
-                last_30 = now - timedelta(days=30)
-                # Headcount metrics
-                total_users = CustomUser.objects.filter(deleted_at__isnull=True).count()
-                employees = CustomUser.objects.filter(role__iexact='employee').count()
-                managers = CustomUser.objects.filter(role__iexact='manager').count()
-                hr_count = CustomUser.objects.filter(role__iexact='hr').count()
-                dashboard['headcount'] = {
-                    'total_active_users': total_users,
-                    'employees': employees,
-                    'managers': managers,
-                    'hr': hr_count,
-                }
-                # Department distribution
-                dept_counts = []
-                for dept in Department.objects.all():
-                    emp_count = CustomUser.objects.filter(department=dept, deleted_at__isnull=True).count()
-                    dept_counts.append({'id': dept.id, 'name': dept.name, 'emp_count': emp_count})
-                dashboard['departments'] = dept_counts
-                # Hires this month (approx using date_joined)
-                hires_this_month = CustomUser.objects.filter(date_joined__date__gte=first_of_month).count()
-                dashboard['hires_this_month'] = hires_this_month
-                # Soft-deleted (attrition) last 30 days
-                deleted_last_30 = CustomUser.all_objects.filter(deleted_at__gte=last_30).count()
-                previous_period_baseline = total_users + deleted_last_30 if (total_users + deleted_last_30) else 1
-                attrition_rate = deleted_last_30 / previous_period_baseline
-                dashboard['attrition_last_30_days'] = {
-                    'count': deleted_last_30,
-                    'rate': round(attrition_rate, 4)
-                }
-                # Leave metrics
-                pending_leave = LeaveRequest.objects.filter(status='PENDING').count()
-                approved_leave_today = LeaveRequest.objects.filter(status='APPROVED', start_date__lte=today, end_date__gte=today).count()
-                dashboard['leave'] = {
-                    'pending_requests': pending_leave,
-                    'employees_on_approved_leave_today': approved_leave_today,
-                }
-                # Attendance today
-                attendance_today = Attendance.objects.filter(date=today)
-                dashboard['attendance_today'] = {
-                    'present': attendance_today.filter(status='Present').count(),
-                    'absent': attendance_today.filter(status='Absent').count(),
-                    'leave': attendance_today.filter(status='Leave').count(),
-                }
-                # Performance metrics
-                perf_qs = PerformanceReview.objects.all()
-                avg_score = perf_qs.aggregate(avg=Avg('score'))['avg'] or 0
-                reviews_this_month = perf_qs.filter(created_at__date__gte=first_of_month).count()
-                # Top performers (latest score per employee, naive: take max score)
-                top_performers = (
-                    perf_qs.values('employee__id', 'employee__first_name', 'employee__last_name')
-                    .annotate(max_score=Max('score'))
-                    .order_by('-max_score')[:5]
-                )
-                dashboard['performance'] = {
-                    'average_score': round(avg_score, 2),
-                    'reviews_this_month': reviews_this_month,
-                    'top_performers': list(top_performers),
-                }
-                # Age distribution buckets (if date_of_birth exists)
-                ages = []
-                for dob in CustomUser.objects.filter(date_of_birth__isnull=False).values_list('date_of_birth', flat=True):
-                    age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-                    ages.append(age)
-                buckets = {'<25':0,'25-34':0,'35-44':0,'45-54':0,'55+':0}
-                for a in ages:
-                    if a < 25: buckets['<25'] += 1
-                    elif a < 35: buckets['25-34'] += 1
-                    elif a < 45: buckets['35-44'] += 1
-                    elif a < 55: buckets['45-54'] += 1
-                    else: buckets['55+'] += 1
-                dashboard['age_distribution'] = buckets
-            data['dashboard'] = dashboard
+            data['dashboard'] = build_dashboard(user)
             return Response(data)
         except Exception as e:
             logger.error(f"Error retrieving user data: {e}", exc_info=True)

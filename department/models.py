@@ -1,6 +1,6 @@
 # filepath: department/models.py
 from django.db import models
-from hr.models import SoftDeleteModel
+from core.models import SoftDeleteModel
 from django.conf import settings
 
 class Department(SoftDeleteModel):

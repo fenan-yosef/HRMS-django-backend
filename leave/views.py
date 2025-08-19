@@ -13,11 +13,13 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
     """
     def get_queryset(self):
         user = self.request.user
+        role = str(getattr(user, 'role', '') or '')
+        role_lower = role.lower()
         # Employees only see their own leave requests
-        if hasattr(user, 'role') and user.role == 'Employee':
+        if role_lower == 'employee':
             return LeaveRequest.objects.filter(employee=user)
         # HR and CEO see all, including soft-deleted
-        if hasattr(user, 'role') and user.role in ['HR', 'CEO']:
+        if role_lower in ['hr', 'ceo']:
             return LeaveRequest.all_objects.all()
         # Others see only active
         return LeaveRequest.objects.all()

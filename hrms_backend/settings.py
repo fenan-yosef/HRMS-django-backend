@@ -47,10 +47,11 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
+    'core',
     'hr', 
     'corsheaders',  # add corsheaders
     'department',
-    # 'employee',  # keep for migration
+    'employee',
     'leave',
 ]
 
