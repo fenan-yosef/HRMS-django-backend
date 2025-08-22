@@ -56,6 +56,9 @@ class SystemSetting(models.Model):
     def __str__(self):
         return f"{self.key}"
 
+    class Meta:
+        ordering = ['key']
+
     @classmethod
     def get_int(cls, key, default=None):
         try:
