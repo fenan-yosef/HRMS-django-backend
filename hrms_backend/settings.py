@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'department',
     'employee',
     'leave',
+    'tasks',
 ]
 
 MIDDLEWARE = [
@@ -91,8 +92,21 @@ WSGI_APPLICATION = 'hrms_backend.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': dj_database_url.parse(os.environ.get("DATABASE_URL"))
+    # Fallback to SQLite for local/dev if DATABASE_URL is not provided
+    'default': dj_database_url.parse(
+        os.environ.get("DATABASE_URL", f"sqlite:///{(Path(__file__).resolve().parent.parent / 'db.sqlite3').as_posix()}"
+    ))
 }
+
+# During test runs, force SQLite to avoid issues with dropping external test DBs
+import sys as _sys
+if 'test' in _sys.argv:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.path.join(BASE_DIR, 'test_db.sqlite3'),
+        }
+    }
 
 
 # Password validation
@@ -132,6 +146,10 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Media uploads (e.g., task attachments)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

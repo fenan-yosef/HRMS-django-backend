@@ -60,6 +60,15 @@ class UserViewSet(viewsets.ModelViewSet):
         role = self.request.query_params.get('role')
         if role:
             queryset = queryset.filter(role__iexact=role)
+        # Apply department filter if provided
+        dept = self.request.query_params.get('department')
+        if dept:
+            try:
+                dept_id = int(dept)
+                queryset = queryset.filter(department_id=dept_id)
+            except (ValueError, TypeError):
+                # ignore invalid department param and leave queryset unchanged
+                pass
         # Managers only see users in their own department
         user = self.request.user
         if getattr(user, 'role', '').lower() == 'manager':
