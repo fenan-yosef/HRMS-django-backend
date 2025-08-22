@@ -13,6 +13,7 @@ urlpatterns = [
     # Removed employee.urls as the app is deprecated
     path('api/leaves/', include('leave.urls')),
     path('api/', include('tasks.urls')),
+    path('api/settings/', include('core.urls')),
 
 
     # This is the new line you are adding.

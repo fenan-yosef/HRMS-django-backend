@@ -28,10 +28,10 @@ class TaskViewSet(viewsets.ModelViewSet):
         qs = super().get_queryset()
         # Scope: HR/CEO see all; managers see dept; employees see assigned/created
         if user.is_superuser or getattr(user, "role", "").lower() in {"hr", "ceo"}:
-            return qs
+            return qs.distinct()
         if getattr(user, "role", "").lower() == "manager":
-            return qs.filter(Q(department_id=user.department_id) | Q(creator_id=user.id) | Q(assignees=user))
-        return qs.filter(Q(creator_id=user.id) | Q(assignees=user))
+            return qs.filter(Q(department_id=user.department_id) | Q(creator_id=user.id) | Q(assignees=user)).distinct()
+        return qs.filter(Q(creator_id=user.id) | Q(assignees=user)).distinct()
 
     def perform_create(self, serializer):
         serializer.save(creator=self.request.user, assigned_by=self.request.user)
@@ -75,8 +75,14 @@ class TaskCommentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         qs = super().get_queryset()
-        # only comments on visible tasks to user
-        return qs.filter(task__in=TaskViewSet().get_queryset())
+        # only comments on visible tasks to user - reproduce the same scoping as TaskViewSet
+        if user.is_superuser or getattr(user, "role", "").lower() in {"hr", "ceo"}:
+            return qs
+        if getattr(user, "role", "").lower() == "manager":
+            task_qs = Task.objects.filter(Q(department_id=user.department_id) | Q(creator_id=user.id) | Q(assignees=user))
+        else:
+            task_qs = Task.objects.filter(Q(creator_id=user.id) | Q(assignees=user))
+        return qs.filter(task__in=task_qs.distinct())
 
 
 class TaskAttachmentViewSet(viewsets.ModelViewSet):
@@ -91,7 +97,13 @@ class TaskAttachmentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         qs = super().get_queryset()
-        return qs.filter(task__in=TaskViewSet().get_queryset())
+        if user.is_superuser or getattr(user, "role", "").lower() in {"hr", "ceo"}:
+            return qs
+        if getattr(user, "role", "").lower() == "manager":
+            task_qs = Task.objects.filter(Q(department_id=user.department_id) | Q(creator_id=user.id) | Q(assignees=user))
+        else:
+            task_qs = Task.objects.filter(Q(creator_id=user.id) | Q(assignees=user))
+        return qs.filter(task__in=task_qs.distinct())
 
 
 class TaskAssignmentViewSet(viewsets.ReadOnlyModelViewSet):

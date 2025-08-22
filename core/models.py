@@ -36,3 +36,44 @@ class SoftDeleteModel(models.Model):
     def delete(self, using=None, keep_parents=False):
         self.deleted_at = timezone.now()
         self.save(update_fields=["deleted_at"])
+
+
+class SystemSetting(models.Model):
+    """Simple key/value table for small site-wide settings editable by CEO/HR.
+
+    We keep a couple of typed value fields to make reads simple. Add new keys
+    as needed. For the annual leave request limit we use the key
+    'annual_leave_request_max_days'.
+    """
+
+    key = models.CharField(max_length=100, unique=True)
+    int_value = models.IntegerField(null=True, blank=True)
+    decimal_value = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    text_value = models.TextField(blank=True)
+    description = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.key}"
+
+    @classmethod
+    def get_int(cls, key, default=None):
+        try:
+            s = cls.objects.get(key=key)
+            if s.int_value is not None:
+                return s.int_value
+            if s.decimal_value is not None:
+                return int(s.decimal_value)
+        except cls.DoesNotExist:
+            return default
+
+    @classmethod
+    def get_decimal(cls, key, default=None):
+        try:
+            s = cls.objects.get(key=key)
+            if s.decimal_value is not None:
+                return s.decimal_value
+            if s.int_value is not None:
+                return s.int_value
+        except cls.DoesNotExist:
+            return default

@@ -1,0 +1,103 @@
+Frontend API Guide: Annual Leave Settings and Usage
+
+Audience: Frontend developers implementing leave request flows and settings UI.
+
+Overview
+- The CEO/HR can configure the annual cap for total leave request DAYS an employee may be approved for per calendar year.
+- Default cap: 15 days if not configured.
+- Pending requests DO NOT count toward the cap. Only APPROVED requests count.
+- The LeaveRequest API now returns a few computed fields to help show usage and remaining days.
+
+Settings API (CEO/HR only)
+Base path: /api/settings/system/
+Auth: JWT/session; requires role = ceo or hr.
+
+List settings (only whitelisted keys)
+GET /api/settings/system/
+Response 200 JSON:
+[
+  {
+    "key": "annual_leave_request_max_days",
+    "int_value": 15,
+    "decimal_value": null,
+    "text_value": "",
+    "description": "Annual cap for approved leave requests (days).",
+    "updated_at": "2025-08-22T10:00:00Z"
+  }
+]
+
+Get a setting by id (not recommended unless you know the PK)
+GET /api/settings/system/{id}/
+
+Create/update setting by key
+- To upsert: First try GET list, if not present, POST; else PATCH existing.
+
+POST /api/settings/system/
+Body JSON (example):
+{
+  "key": "annual_leave_request_max_days",
+  "int_value": 18,
+  "description": "Annual cap for approved leave requests (days)."
+}
+Responses:
+- 201 Created with setting object
+- 400 Validation error
+
+PATCH /api/settings/system/{id}/
+Body JSON (example):
+{
+  "int_value": 20
+}
+Responses:
+- 200 OK with setting object
+- 400 Validation error
+
+Notes:
+- Allowed keys currently: ["annual_leave_request_max_days"]. Type: int (>= 0).
+- Only CEO/HR can access these endpoints.
+
+Leave Request API additions
+- Serializer fields added to LeaveRequest items:
+  - yearly_granted_days: number (sum of APPROVED leave days in current year for that employee)
+  - yearly_remaining_days: number (system cap - yearly_granted_days; min 0)
+  - system_annual_request_limit: number (current cap; default 15)
+
+Example LeaveRequest object (partial):
+{
+  "id": 123,
+  "employee": 45,
+  "start_date": "2025-08-01",
+  "end_date": "2025-08-05",
+  "status": "PENDING",
+  "duration_days": 5,
+  "yearly_granted_days": 7,
+  "yearly_remaining_days": 8,
+  "system_annual_request_limit": 15
+}
+
+Enforcement logic (server-side)
+- When an employee creates a new leave request, the backend prevents submission ONLY if (already approved days this year + requested days) > cap.
+- Requests that fit within remaining quota are allowed to be created.
+- Pending requests do not count; only APPROVED leave requests are summed.
+
+Client guidance
+- When displaying a user dashboard:
+  - Use any LeaveRequest object returned for that user to read the three computed fields. Alternatively, call a small list endpoint and use the first item.
+  - You can also compute remaining days yourself by reading the cap via the Settings API and summing APPROVED requests.
+- Before posting a request:
+  - Optionally show the remaining days pulled from any existing leave request item or from a quick GET list of the user’s requests and computing the sum of APPROVED ones. The server will still enforce the cap.
+
+Edge cases
+- Cross-year leave: days are evaluated against the year of the start_date and current calendar year. If you need split-year handling, coordinate with backend.
+- Missing duration_days: backend computes inclusive days (end - start + 1).
+- If the setting is missing, the server assumes default 15.
+
+FAQ
+Q: Do pending requests reduce the remaining amount?
+A: No. Only APPROVED requests are counted.
+
+Q: What if CEO changes the cap mid-year?
+A: Remaining updates immediately reflect in new creations and serializer fields.
+
+Contact
+- Backend point: update list of allowed keys or add new settings if needed.

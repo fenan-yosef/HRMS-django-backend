@@ -64,6 +64,9 @@ class CustomUser(AbstractUser, SoftDeleteModel):
 
     def __str__(self):
         return self.email
+    
+    class Meta:
+        ordering = ['email']
 
 
 # ----- Performance Management models (review cycles, competency, reviews, scores) -----
