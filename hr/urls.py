@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import UserViewSet, get_csrf_token_view, PerformanceReviewViewSet, get_high_level_users, AttendanceViewSet, ComplaintViewSet
+from .views import UserViewSet, get_csrf_token_view, PerformanceReviewViewSet, get_high_level_users, AttendanceViewSet, ComplaintViewSet, AnalyticsViewSet
 from .change_password_views import ChangePasswordView
 from .auth_views import RegisterView, LoginView
 from rest_framework_simplejwt.views import (
@@ -15,6 +15,7 @@ router.register(r'users', UserViewSet)
 router.register(r'performance-reviews', PerformanceReviewViewSet)
 router.register(r'attendance', AttendanceViewSet, basename='attendance')
 router.register(r'complaints', ComplaintViewSet, basename='complaints')
+router.register(r'analytics', AnalyticsViewSet, basename='analytics')
 
 urlpatterns = [
     path('', include(router.urls)),

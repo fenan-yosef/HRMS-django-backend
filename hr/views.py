@@ -1,6 +1,8 @@
 from rest_framework import viewsets, permissions, status
 from django.utils import timezone
 from django.db import models
+from django.db.models import Count, Avg, Q
+from django.db.models.functions import TruncMonth, TruncWeek
 from .permissions import AnyOf, IsCEO, IsHR, IsManager, IsManagerOfDepartment
 from rest_framework.response import Response
 import traceback
@@ -20,6 +22,7 @@ from rest_framework.decorators import api_view, action
 from .serializers import HighLevelUserSerializer
 from django.core.mail import send_mail
 from django.conf import settings
+from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -346,6 +349,112 @@ class ComplaintViewSet(viewsets.ModelViewSet):
             )
         except Exception:
             logger.exception("Failed to send complaint notification email")
+
+
+class AnalyticsViewSet(viewsets.ViewSet):
+    """Analytics endpoints for HR/CEO dashboards."""
+
+    def get_permissions(self):
+        # Restrict analytics to HR and CEO
+        return [AnyOf(IsCEO, IsHR)]
+
+    @action(detail=False, methods=['get'], url_path='headcount-by-department')
+    def headcount_by_department(self, request):
+        # Active users by department
+        depts = (
+            Department.objects
+            .annotate(emp_count=Count('custom_users', filter=Q(custom_users__deleted_at__isnull=True)))
+            .values('id', 'name', 'emp_count')
+            .order_by('name')
+        )
+        return Response({'results': list(depts)})
+
+    @action(detail=False, methods=['get'], url_path='hires-vs-exits')
+    def hires_vs_exits(self, request):
+        # Last N months (default 6)
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        months = int(request.query_params.get('months', 6))
+        today = timezone.localdate()
+        # Build month start list, oldest first
+        month_starts = []
+        y, m = today.year, today.month
+        for i in range(months - 1, -1, -1):
+            mm = m - i
+            yy = y
+            while mm <= 0:
+                mm += 12
+                yy -= 1
+            month_starts.append(timezone.datetime(yy, mm, 1, tzinfo=timezone.get_current_timezone()))
+        labels = [dt.strftime('%Y-%m') for dt in month_starts]
+        # Next month for range ends
+        def next_month(dt):
+            if dt.month == 12:
+                return dt.replace(year=dt.year+1, month=1, day=1)
+            return dt.replace(month=dt.month+1, day=1)
+        hires = []
+        exits = []
+        for start in month_starts:
+            end = next_month(start)
+            h = User.objects.filter(date_joined__gte=start, date_joined__lt=end).count()
+            # use all_objects to include soft-deleted users
+            x = User.all_objects.filter(deleted_at__gte=start, deleted_at__lt=end).count()
+            hires.append(h)
+            exits.append(x)
+        return Response({'labels': labels, 'hires': hires, 'exits': exits})
+
+    @action(detail=False, methods=['get'], url_path='leave-status')
+    def leave_status(self, request):
+        # Last X days grouped by week (default 90 days)
+        from leave.models import LeaveRequest
+        days = int(request.query_params.get('days', 90))
+        now = timezone.now()
+        start = now - timedelta(days=days)
+        qs = (LeaveRequest.objects
+              .filter(applied_date__gte=start)
+              .annotate(week=TruncWeek('applied_date'))
+              .values('week', 'status')
+              .annotate(count=Count('id'))
+              .order_by('week'))
+        # Build buckets
+        buckets = {}
+        for row in qs:
+            week = row['week'].date().isoformat() if row['week'] else 'unknown'
+            status_key = row['status']
+            buckets.setdefault(week, {'PENDING': 0, 'APPROVED': 0, 'DENIED': 0})
+            buckets[week][status_key] = row['count']
+        labels = sorted(buckets.keys())
+        pending = [buckets[w]['PENDING'] for w in labels]
+        approved = [buckets[w]['APPROVED'] for w in labels]
+        denied = [buckets[w]['DENIED'] for w in labels]
+        return Response({'labels': labels, 'pending': pending, 'approved': approved, 'denied': denied})
+
+    @action(detail=False, methods=['get'], url_path='tasks-pipeline')
+    def tasks_pipeline(self, request):
+        from tasks.models import Task
+        dept_id = request.query_params.get('department_id')
+        qs = Task.objects.all()
+        if dept_id:
+            qs = qs.filter(department_id=dept_id)
+        by_status = qs.values('status').annotate(count=Count('id'))
+        status_counts = {row['status']: row['count'] for row in by_status}
+        now = timezone.now()
+        overdue = qs.filter(due_date__lt=now).exclude(status__in=['done', 'archived']).count()
+        return Response({'by_status': status_counts, 'overdue': overdue})
+
+    @action(detail=False, methods=['get'], url_path='performance-avg-by-department')
+    def performance_avg_by_department(self, request):
+        rows = (
+            PerformanceReview.objects
+            .values('employee__department__id', 'employee__department__name')
+            .annotate(avg_score=Avg('overall_score'), reviews=Count('id'))
+            .order_by('employee__department__name')
+        )
+        results = []
+        for r in rows:
+            name = r['employee__department__name'] or 'Unassigned'
+            results.append({'department_id': r['employee__department__id'], 'department': name, 'avg_score': round(r['avg_score'] or 0, 2), 'reviews': r['reviews']})
+        return Response({'results': results})
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
