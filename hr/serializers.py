@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import CustomUser, PerformanceReview, Attendance
+from .models import CustomUser, PerformanceReview, Attendance, Complaint
 from department.serializers import DepartmentSerializer
 from department.models import Department
 from django.contrib.auth import get_user_model, authenticate
@@ -113,3 +113,32 @@ class HighLevelUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ['id', 'email', 'first_name', 'last_name', 'role']
+
+
+class ComplaintSerializer(serializers.ModelSerializer):
+    created_by = HighLevelUserSerializer(read_only=True)
+    target_user_detail = HighLevelUserSerializer(source='target_user', read_only=True)
+
+    class Meta:
+        model = Complaint
+        fields = [
+            'id', 'type', 'subject', 'description', 'created_by', 'target_user',
+            'target_user_detail', 'send_to_ceo', 'status', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_by', 'status', 'created_at', 'updated_at']
+
+    def validate(self, attrs):
+        user = self.context['request'].user
+        ctype = attrs.get('type')
+        # Managers can only create manager_report; employees only employee_complaint
+        role = str(getattr(user, 'role', '')).lower()
+        if role == 'manager' and ctype != 'manager_report':
+            raise serializers.ValidationError({'type': 'Managers can only create manager reports.'})
+        if role == 'employee' and ctype != 'employee_complaint':
+            raise serializers.ValidationError({'type': 'Employees can only create employee complaints.'})
+        return attrs
+
+    def create(self, validated_data):
+        if 'created_by' not in validated_data:
+            validated_data['created_by'] = self.context['request'].user
+        return Complaint.objects.create(**validated_data)

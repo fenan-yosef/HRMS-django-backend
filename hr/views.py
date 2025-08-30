@@ -6,9 +6,9 @@ from rest_framework.response import Response
 import traceback
 from django.shortcuts import render
 from django.middleware.csrf import get_token
-from .models import CustomUser, PerformanceReview, Attendance
+from .models import CustomUser, PerformanceReview, Attendance, Complaint
 from department.models import Department
-from .serializers import UserSerializer, DepartmentSerializer, PerformanceReviewSerializer, AttendanceSerializer
+from .serializers import UserSerializer, DepartmentSerializer, PerformanceReviewSerializer, AttendanceSerializer, ComplaintSerializer
 from rest_framework.views import APIView
 from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -18,6 +18,8 @@ from django.http import JsonResponse
 import logging
 from rest_framework.decorators import api_view, action
 from .serializers import HighLevelUserSerializer
+from django.core.mail import send_mail
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -273,6 +275,77 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         att.status = 'Absent'
         att.save(update_fields=['check_in_time', 'check_out_time', 'work_duration', 'status'])
         return Response({'detail': 'Attendance reset to Absent.'})
+
+
+class ComplaintViewSet(viewsets.ModelViewSet):
+    queryset = Complaint.objects.all().select_related('created_by', 'target_user')
+    serializer_class = ComplaintSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        role = str(getattr(user, 'role', '')).lower()
+        qs = Complaint.objects.all().select_related('created_by', 'target_user')
+        if role in ['ceo', 'hr']:
+            return qs
+        if role == 'manager':
+            # Manager sees complaints they created and those about users in their department
+            dept_id = getattr(user, 'department_id', None)
+            return qs.filter(models.Q(created_by=user) | models.Q(target_user__department_id=dept_id))
+        # Employee: see only their created complaints
+        return qs.filter(created_by=user)
+
+    def get_permissions(self):
+        if self.action in ['create']:
+            # Any authenticated user can create (Employee, Manager, HR, CEO)
+            return [permissions.IsAuthenticated()]
+        if self.action in ['update', 'partial_update', 'destroy']:
+            # Only HR/CEO can modify status or delete
+            return [AnyOf(IsCEO, IsHR)]
+        return [permissions.IsAuthenticated()]
+
+    def perform_create(self, serializer):
+        complaint = serializer.save(created_by=self.request.user)
+        self._send_complaint_email(complaint)
+
+    @action(detail=True, methods=['post'], url_path='set-status', permission_classes=[AnyOf(IsCEO, IsHR)])
+    def set_status(self, request, pk=None):
+        complaint = self.get_object()
+        status_val = request.data.get('status')
+        if status_val not in dict(Complaint.STATUS_CHOICES):
+            return Response({'detail': 'Invalid status.'}, status=400)
+        complaint.status = status_val
+        complaint.save(update_fields=['status'])
+        return Response({'detail': 'Status updated.'})
+
+    def _send_complaint_email(self, complaint: Complaint):
+        try:
+            subject = f"[{complaint.get_type_display()}] {complaint.subject}"
+            body_lines = [
+                f"From: {complaint.created_by.get_full_name() or complaint.created_by.email}",
+                f"Type: {complaint.get_type_display()}",
+                f"About: {complaint.target_user.get_full_name() or complaint.target_user.email if complaint.target_user else 'N/A'}",
+                "",
+                complaint.description,
+            ]
+            message = "\n".join(body_lines)
+
+            # Recipients: all HR users, and CEO if send_to_ceo True
+            hr_emails = list(CustomUser.objects.filter(role__iexact='hr', is_active=True).values_list('email', flat=True))
+            to_emails = hr_emails
+            if complaint.send_to_ceo:
+                ceo_emails = list(CustomUser.objects.filter(role__iexact='ceo', is_active=True).values_list('email', flat=True))
+                to_emails = list(set(hr_emails + ceo_emails))
+            if not to_emails:
+                return
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL,
+                to_emails,
+                fail_silently=True,
+            )
+        except Exception:
+            logger.exception("Failed to send complaint notification email")
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer

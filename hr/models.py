@@ -303,3 +303,60 @@ class PasswordResetOTP(models.Model):
     def __str__(self):
         return f"{self.email} - {self.otp} ({'used' if self.is_used else 'active'})"
 
+
+# ----- HR Complaints / Reports -----
+
+ 
+class Complaint(SoftDeleteModel):
+    """Records manager reports and employee complaints to HR/CEO.
+
+    - type: manager_report (Manager -> HR), employee_complaint (Employee -> HR+CEO)
+    - created_by: the user who filed the complaint/report
+    - target_user: optional user the complaint/report is about
+    - send_to_ceo: if true, email HR+CEO; default true for employee complaints
+    - status: workflow managed by HR/CEO
+    """
+
+    TYPE_CHOICES = [
+        ("manager_report", "Manager Report"),
+        ("employee_complaint", "Employee Complaint"),
+    ]
+
+    STATUS_CHOICES = [
+        ("open", "Open"),
+        ("in_review", "In Review"),
+        ("resolved", "Resolved"),
+        ("dismissed", "Dismissed"),
+    ]
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="complaints_created",
+    )
+    target_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="complaints_received",
+    )
+    type = models.CharField(max_length=32, choices=TYPE_CHOICES)
+    subject = models.CharField(max_length=255)
+    description = models.TextField()
+    send_to_ceo = models.BooleanField(default=False)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="open")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["type", "status"]),
+            models.Index(fields=["created_by"]),
+            models.Index(fields=["target_user"]),
+        ]
+
+    def __str__(self):
+        return f"{self.get_type_display()} #{self.pk} - {self.subject}"
+
