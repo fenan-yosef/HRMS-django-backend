@@ -181,6 +181,7 @@ CORS_ALLOWED_ORIGINS = [
     "https://hrms-django-backend.onrender.com",  # deployed backend
     "https://hr-management-system-frontend-tau.vercel.app",  # deployed frontend on Vercel
 ]
+CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins for testing (not recommended for production)
 
 # Email configuration
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
