@@ -3,14 +3,15 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from .models import SystemSetting
-from .serializers import SystemSettingSerializer, ALLOWED_SETTINGS
+from .models import SystemSetting, AuditLog
+from .serializers import SystemSettingSerializer, ALLOWED_SETTINGS, AuditLogSerializer
 from hr.permissions import AnyOf, IsCEO, IsHR
 import logging
 from rest_framework.exceptions import ValidationError
 from django.db import IntegrityError
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated as DRFIsAuthenticated
+from rest_framework import viewsets, pagination
 
 logger = logging.getLogger(__name__)
 
@@ -136,3 +137,33 @@ class SystemSettingByKeyView(APIView):
 
         logger.info('SystemSettingByKeyView PATCH success key=%s', key)
         return Response(serializer.data)
+
+
+class FifteenPerPagePagination(pagination.PageNumberPagination):
+    page_size = 15
+    max_page_size = 50
+
+
+class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = AuditLog.objects.all()
+    serializer_class = AuditLogSerializer
+    permission_classes = [DRFIsAuthenticated]
+    pagination_class = FifteenPerPagePagination
+
+    def get_permissions(self):
+        # Instantiate the base DRF permission and our composite AnyOf(IsCEO)
+        return [DRFIsAuthenticated(), AnyOf(IsCEO)]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        # Optional filters: action, actor email contains, path contains
+        action = self.request.query_params.get('action')
+        actor = self.request.query_params.get('actor')
+        path = self.request.query_params.get('path')
+        if action:
+            qs = qs.filter(action__iexact=action)
+        if actor:
+            qs = qs.filter(actor__email__icontains=actor)
+        if path:
+            qs = qs.filter(path__icontains=path)
+        return qs

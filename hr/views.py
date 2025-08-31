@@ -23,6 +23,7 @@ from .serializers import HighLevelUserSerializer
 from django.core.mail import send_mail
 from django.conf import settings
 from datetime import timedelta
+from core.utils_audit import log_audit
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +39,8 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'User is not a manager.'}, status=400)
         user.role = 'employee'
         user.save(update_fields=['role'])
+        log_audit(request, action='user_demoted', summary=f"Demoted {user.email} to employee", target_model='hr.CustomUser', target_object_id=user.id)
         return Response({'detail': f'{user.email} demoted to employee.'})
-    from rest_framework.decorators import action
 
     @action(detail=True, methods=['post'], url_path='promote', url_name='promote')
     def promote_to_manager(self, request, pk=None):
@@ -52,7 +53,28 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'User is already a manager.'}, status=400)
         user.role = 'manager'
         user.save(update_fields=['role'])
+        log_audit(request, action='user_promoted', summary=f"Promoted {user.email} to manager", target_model='hr.CustomUser', target_object_id=user.id)
         return Response({'detail': f'{user.email} promoted to manager.'})
+
+    @action(detail=True, methods=['post'], url_path='disable', permission_classes=[AnyOf(IsCEO, IsHR)])
+    def disable_user(self, request, pk=None):
+        user = self.get_object()
+        if not user.is_active:
+            return Response({'detail': 'User account already disabled.'}, status=400)
+        user.is_active = False
+        user.save(update_fields=['is_active'])
+        log_audit(request, action='user_disabled', summary=f"Disabled {user.email}", target_model='hr.CustomUser', target_object_id=user.id)
+        return Response({'detail': f'{user.email} disabled. Login blocked.'})
+
+    @action(detail=True, methods=['post'], url_path='enable', permission_classes=[AnyOf(IsCEO, IsHR)])
+    def enable_user(self, request, pk=None):
+        user = self.get_object()
+        if user.is_active:
+            return Response({'detail': 'User account already enabled.'}, status=400)
+        user.is_active = True
+        user.save(update_fields=['is_active'])
+        log_audit(request, action='user_enabled', summary=f"Enabled {user.email}", target_model='hr.CustomUser', target_object_id=user.id)
+        return Response({'detail': f'{user.email} enabled.'})
     queryset = CustomUser.objects.all()
     serializer_class = UserSerializer
 
@@ -309,6 +331,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         complaint = serializer.save(created_by=self.request.user)
         self._send_complaint_email(complaint)
+        log_audit(self.request, action='complaint_created', summary=f"Complaint #{complaint.id} created: {complaint.subject}", target_model='hr.Complaint', target_object_id=complaint.id)
 
     @action(detail=True, methods=['post'], url_path='set-status', permission_classes=[AnyOf(IsCEO, IsHR)])
     def set_status(self, request, pk=None):
@@ -318,6 +341,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Invalid status.'}, status=400)
         complaint.status = status_val
         complaint.save(update_fields=['status'])
+        log_audit(request, action='complaint_status_changed', summary=f"Complaint #{complaint.id} status -> {status_val}", target_model='hr.Complaint', target_object_id=complaint.id)
         return Response({'detail': 'Status updated.'})
 
     def _send_complaint_email(self, complaint: Complaint):

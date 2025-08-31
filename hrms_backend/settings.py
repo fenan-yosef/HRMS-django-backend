@@ -59,6 +59,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'hrms_backend.audit_middleware.AuditLogMiddleware',
     'corsheaders.middleware.CorsMiddleware',  # add CorsMiddleware
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -194,6 +195,10 @@ AUTHENTICATION_BACKENDS = [
     'hr.auth_backend.CustomAuthBackend',  # Add custom backend
     'django.contrib.auth.backends.ModelBackend',  # Default backend
 ]
+
+# Audit logging configuration
+# Modes: 'off' (no logs), 'minimal' (auth + 5xx errors), 'important' (adds key business heuristics), 'all' (every /api/*)
+AUDIT_LOG_MODE = os.environ.get('AUDIT_LOG_MODE', 'minimal').lower()
 
 LOGGING = {
     'version': 1,

@@ -70,6 +70,37 @@ class SystemSetting(models.Model):
         except cls.DoesNotExist:
             return default
 
+
+class AuditLog(models.Model):
+    """Lightweight audit log for API actions.
+
+    Captures who did what, when, and basic HTTP context so CEO can review.
+    """
+
+    timestamp = models.DateTimeField(auto_now_add=True)
+    actor = models.ForeignKey('hr.CustomUser', on_delete=models.SET_NULL, null=True, blank=True, related_name='audit_logs')
+    action = models.CharField(max_length=100, blank=True)  # short code e.g., 'api_call', 'user_disabled', 'complaint_created'
+    summary = models.TextField(blank=True)  # human-friendly description
+    method = models.CharField(max_length=10, blank=True)
+    path = models.CharField(max_length=500, blank=True)
+    status_code = models.IntegerField(null=True, blank=True)
+    ip_address = models.CharField(max_length=100, blank=True)
+    user_agent = models.TextField(blank=True)
+    target_model = models.CharField(max_length=200, blank=True)
+    target_object_id = models.CharField(max_length=100, blank=True)
+    extra = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['timestamp']),
+            models.Index(fields=['action']),
+        ]
+
+    def __str__(self):
+        who = getattr(self.actor, 'email', 'system') if self.actor else 'anonymous'
+        return f"[{self.timestamp:%Y-%m-%d %H:%M:%S}] {who} {self.action}: {self.summary[:60]}"
+
     @classmethod
     def get_decimal(cls, key, default=None):
         try:

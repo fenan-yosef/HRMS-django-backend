@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import SystemSetting
+from .models import SystemSetting, AuditLog
 
 
 ALLOWED_SETTINGS = {
@@ -29,3 +29,17 @@ class SystemSettingSerializer(serializers.ModelSerializer):
                 if val is None:
                     raise serializers.ValidationError({'decimal_value': 'This field is required for this setting.'})
         return attrs
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    actor_email = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AuditLog
+        fields = [
+            'id', 'timestamp', 'actor_email', 'action', 'summary', 'method', 'path', 'status_code',
+            'ip_address', 'user_agent', 'target_model', 'target_object_id', 'extra'
+        ]
+
+    def get_actor_email(self, obj):
+        return getattr(obj.actor, 'email', None)
