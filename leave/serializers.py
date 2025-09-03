@@ -1,6 +1,5 @@
 from rest_framework import serializers
 from .models import LeaveRequest, LeaveType, LeaveApproval, LeaveBalance
-from hr.models import CustomUser
 
 class LeaveRequestSerializer(serializers.ModelSerializer):
     employee = serializers.PrimaryKeyRelatedField(read_only=True)
@@ -16,8 +15,25 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = LeaveRequest
-    fields = '__all__'
-    extra_fields = ['approvers', 'deleted_at']
+        # Explicitly include model fields plus computed serializer fields
+        fields = [
+            'id',
+            'employee',
+            'employee_details',
+            'approvers',
+            'yearly_granted_days',
+            'yearly_remaining_days',
+            'system_annual_request_limit',
+            'leave_type',
+            'start_date',
+            'end_date',
+            'duration_days',
+            'reason',
+            'status',
+            'applied_date',
+            'requested_by',
+            'deleted_at',
+        ]
 
     def get_employee_details(self, obj):
         return {

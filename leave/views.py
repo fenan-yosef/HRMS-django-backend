@@ -52,13 +52,14 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
-        # If HR, allow specifying employee; else, force employee to self
-        if hasattr(user, 'role') and user.role == 'HR':
+        role = str(getattr(user, 'role', '') or '').strip().lower()
+
+        if role == 'hr':
             employee_id = self.request.data.get('employee')
             if not employee_id:
                 from rest_framework.exceptions import ValidationError
                 raise ValidationError({'employee': 'This field is required for HR.'})
-            serializer.save(employee_id=employee_id)
+            instance = serializer.save(employee_id=employee_id, requested_by=user)
         else:
             # Before saving, enforce the CEO-configured yearly cap for total requested days
             from core.models import SystemSetting
@@ -66,10 +67,7 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
 
             start_date = serializer.validated_data.get('start_date')
             end_date = serializer.validated_data.get('end_date')
-            if start_date and end_date:
-                requested_days = (end_date - start_date).days + 1
-            else:
-                requested_days = 0
+            requested_days = (end_date - start_date).days + 1 if start_date and end_date else 0
 
             # Calculate already granted approved days for current year
             from django.utils import timezone
@@ -85,11 +83,15 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
             if approved_total + requested_days > max_days:
                 from rest_framework.exceptions import ValidationError
                 raise ValidationError({
-                    'non_field_errors': [
-                        f'Request exceeds annual allowed leave request limit of {max_days} days. You have {max_days - approved_total} days remaining.'
-                    ]
+                    'non_field_errors': [f'Request exceeds annual allowed leave request limit of {max_days} days. You have {max_days - approved_total} days remaining.']
                 })
 
-            serializer.save(employee=user)
+            instance = serializer.save(employee=user, requested_by=user)
+
+        # Auto-calc duration_days if not provided
+        if instance.duration_days is None and instance.start_date and instance.end_date:
+            days = (instance.end_date - instance.start_date).days + 1
+            instance.duration_days = days
+            instance.save(update_fields=['duration_days'])
     # Optionally, add logging to other methods as well (e.g., list, retrieve)
  
